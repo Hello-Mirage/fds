@@ -4,8 +4,11 @@ ___________________________
 FDS is a browser-less, WASM-native remote UI platform that delivers UI logic instead of pixels. By executing drawing logic at the client edge, FDS provides a native experience even on low-bandwidth connections.
 
 
-Documentation
+
 ___________________________
+
+Documentation
+
 
 Detailed guides and technical specifications are in the docs/ folder:
 
@@ -13,9 +16,10 @@ Detailed guides and technical specifications are in the docs/ folder:
   - docs/DEVELOPING_APPS.md  Guide to building Skia-native UI modules.
   - docs/ARCHITECTURE.md     The WASM-Chunked Streaming protocol.
 
+___________________________
 
 Quick Start
-___________________________
+
 
 Ensure you have the .NET 10 SDK installed.
 
@@ -28,8 +32,10 @@ Ensure you have the .NET 10 SDK installed.
   3. Custom Protocol Integration:
      Import install_fds_protocol.reg to enable fds:// browser links.
 
-Core Features
 ___________________________
+
+Core Features
+
 
   - WASM-Native Logic: UI logic is streamed as binary chunks and executed at native speed.
   - Zero-Latency Input: Interaction hit-tests occur locally on the client (0ms delay).
@@ -37,8 +43,10 @@ ___________________________
   - Custom Protocol (fds://): Launch native UI sessions directly from any browser or website.
 
 
-Project Structure
 ___________________________
+
+Project Structure
+
 
   streamer/      The TCP server that distributes the UI logic module.
   fds-client/    The Avalonia client that hosts the local Skia engine.
