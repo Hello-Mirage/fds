@@ -15,7 +15,8 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow();
+            string? url = desktop.Args?.Length > 0 ? desktop.Args[0] : null;
+            desktop.MainWindow = new MainWindow(url);
         }
 
         base.OnFrameworkInitializationCompleted();

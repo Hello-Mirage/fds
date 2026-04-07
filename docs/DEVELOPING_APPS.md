@@ -19,46 +19,47 @@ Create Project:
 Protocol Signature
 ___________________________
 
-Your module must export a static __Render__ method in the __FdsLogic__ namespace:
+Your module should export static methods in the __FdsLogic__ namespace:
 
   namespace FdsLogic;
 
   public static class DocumentationRenderer
   {
-      public static void Render(SKCanvas canvas, float width, float height, float scrollOffset)
+      // [Required] Drawing loop called at 60FPS
+      public static float Render(SKCanvas canvas, float width, float height, float scrollOffset)
       {
           canvas.Clear(SKColors.Black);
+          // Drawing logic here...
+          return 2000; // Return total content height for scroll clamping
+      }
 
-          bool isMobile = width < 580;
-
-          using var paint = new SKPaint { Color = SKColors.Cyan, TextSize = 32 };
-          canvas.DrawText("Hello FDS!", 50, 100, paint);
+      // [Optional] Local hit-testing called on click/touch
+      public static void HandleClick(float x, float y, float width, float height, float scrollOffset)
+      {
+          // Interaction logic (e.g. navigation or state updates)
       }
   }
 
 
-2. Compile for Distribution
+2. Interactivity & Routing
 ___________________________
 
-To prepare your app for the Streamer:
-
-  dotnet build -c Release
-
-This produces MyFdsApp.dll (your UI logic binary).
+FDS supports __Local-Edge Interactivity__. By implementing `HandleClick`, you can respond to user input with 0ms delay. You can also implement internal routing by maintaining a `_currentPage` state and switching rendering paths inside the `Render` method.
 
 
-3. Register with the Streamer
+3. Compile & Test
 ___________________________
 
-In Streamer/Program.cs, point the module loader to your binary:
+To prepare your app and launch all services:
 
-  var dllPath = @"path/to/MyFdsApp.dll";
-  var moduleData = File.ReadAllBytes(dllPath);
+  1. Build Logic: `dotnet build -c Release`
+  2. Launch: `python run.py`
 
 
 4. Best Practices
 ___________________________
 
-  - Responsive-First: Always check __width__ and __height__ inside the Render method to dynamically adjust layout.
-  - Stateless Rendering: The Render method should focus on drawing. Keep session state on the server.
-  - Embedded Assets: Large images or fonts should be included as EmbeddedResource in your logic project. FDS will stream them as part of the binary module.
+  - Responsive-First: Check __width__ to switch between Mobile (<600) and Desktop layouts.
+  - Unified Context: Create a shared `LayoutContext` to keep `Render` and `HandleClick` in sync.
+  - Content Height: Always return the accurate total length of your content from `Render` to enable smooth scrolling.
+  - Embedded Assets: Use `EmbeddedResource` for fonts and images; they will be streamed in the logic bundle.

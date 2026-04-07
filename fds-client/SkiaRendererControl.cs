@@ -26,13 +26,25 @@ public class SkiaRendererControl : Control
     private float _lastSyncedW = -1;
     private float _lastSyncedH = -1;
     private float _scrollOffset = 0;
+    private float _maxScroll = 0;
     private float _streamProgress = 0;
 
     private System.Reflection.MethodInfo? _remoteRenderMethod;
+    private System.Reflection.MethodInfo? _remoteClickHandler;
+
+    public string ConnectionHost { get; set; } = "127.0.0.1";
+    public int ConnectionPort { get; set; } = 5000;
 
     public SkiaRendererControl()
     {
         _cts = new CancellationTokenSource();
+    }
+
+    public void StartConnection()
+    {
+        if (_cts != null && !_cts.IsCancellationRequested) _cts.Cancel();
+        _cts = new CancellationTokenSource();
+
         Task.Run(() => ListenForDrawingCommands(_cts.Token));
         Task.Run(() => ConnectInputChannel(_cts.Token));
         
@@ -82,7 +94,7 @@ public class SkiaRendererControl : Control
             try
             {
                 using var client = new TcpClient();
-                await client.ConnectAsync("127.0.0.1", 5000);
+                await client.ConnectAsync(ConnectionHost, ConnectionPort);
                 using var stream = client.GetStream();
 
                 byte[] lengthBuffer = new byte[4];
@@ -113,6 +125,7 @@ public class SkiaRendererControl : Control
                 if (type != null)
                 {
                     _remoteRenderMethod = type.GetMethod("Render");
+                    _remoteClickHandler = type.GetMethod("HandleClick");
                     _streamProgress = 1.0f;
                 }
 
@@ -136,7 +149,7 @@ public class SkiaRendererControl : Control
         }
         else if (_remoteRenderMethod != null)
         {
-            context.Custom(new SkiaDrawOperation(new Rect(0, 0, Bounds.Width, Bounds.Height), _remoteRenderMethod, _scrollOffset));
+            context.Custom(new SkiaDrawOperation(new Rect(0, 0, Bounds.Width, Bounds.Height), _remoteRenderMethod, _scrollOffset, this));
         }
     }
 
@@ -180,7 +193,8 @@ public class SkiaRendererControl : Control
     {
         private readonly System.Reflection.MethodInfo _method;
         private readonly float _scroll;
-        public SkiaDrawOperation(Rect bounds, System.Reflection.MethodInfo method, float scroll) { Bounds = bounds; _method = method; _scroll = scroll; }
+        private readonly SkiaRendererControl _owner;
+        public SkiaDrawOperation(Rect bounds, System.Reflection.MethodInfo method, float scroll, SkiaRendererControl owner) { Bounds = bounds; _method = method; _scroll = scroll; _owner = owner; }
         public Rect Bounds { get; }
         public void Dispose() { }
         public bool Equals(ICustomDrawOperation? other) => false;
@@ -191,7 +205,12 @@ public class SkiaRendererControl : Control
             if (lease == null) return;
             using (lease)
             {
-                _method.Invoke(null, new object[] { lease.SkCanvas, (float)Bounds.Width, (float)Bounds.Height, _scroll });
+                var result = _method.Invoke(null, new object[] { lease.SkCanvas, (float)Bounds.Width, (float)Bounds.Height, _scroll });
+                if (result is float contentHeight)
+                {
+                    float maxScroll = Math.Max(0, contentHeight - (float)Bounds.Height);
+                    _owner._maxScroll = maxScroll;
+                }
             }
         }
     }
@@ -203,7 +222,7 @@ public class SkiaRendererControl : Control
             try
             {
                 _inputClient = new TcpClient();
-                await _inputClient.ConnectAsync("127.0.0.1", 5001, ct);
+                await _inputClient.ConnectAsync(ConnectionHost, ConnectionPort + 1, ct);
                 _inputStream = _inputClient.GetStream();
                 _lastSyncedW = -1;
                 Dispatcher.UIThread.Post(() => SyncSizeToServer());
@@ -216,7 +235,22 @@ public class SkiaRendererControl : Control
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         var pos = e.GetPosition(this);
-        if (Bounds.Width <= 0 || _inputStream == null) return;
+        if (Bounds.Width <= 0) return;
+
+        // Remote Logic Click Handling (Local Edge)
+        if (_remoteClickHandler != null)
+        {
+            try {
+                _remoteClickHandler.Invoke(null, new object[] { 
+                    (float)pos.X, (float)pos.Y, 
+                    (float)Bounds.Width, (float)Bounds.Height, 
+                    _scrollOffset 
+                });
+                InvalidateVisual();
+            } catch {}
+        }
+
+        if (_inputStream == null) return;
         float nx = (float)(pos.X / Bounds.Width);
         float ny = (float)(pos.Y / Bounds.Height);
         Task.Run(async () => {
@@ -237,6 +271,7 @@ public class SkiaRendererControl : Control
         float dy = (float)e.Delta.Y;
         _scrollOffset -= dy * 30.0f;
         if (_scrollOffset < 0) _scrollOffset = 0;
+        if (_maxScroll > 0 && _scrollOffset > _maxScroll) _scrollOffset = _maxScroll;
         if (_inputStream == null) return;
         Task.Run(async () => {
             await _streamLock.WaitAsync();

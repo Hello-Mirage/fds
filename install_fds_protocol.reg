@@ -1,0 +1,15 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CLASSES_ROOT\fds]
+@="URL:fds Protocol"
+"URL Protocol"=""
+
+[HKEY_CLASSES_ROOT\fds\DefaultIcon]
+@="D:\\fds\\fds-client\\bin\\Release\\net10.0\\FdsClient.exe,1"
+
+[HKEY_CLASSES_ROOT\fds\shell]
+
+[HKEY_CLASSES_ROOT\fds\shell\open]
+
+[HKEY_CLASSES_ROOT\fds\shell\open\command]
+@="\"D:\\fds\\fds-client\\bin\\Release\\net10.0\\FdsClient.exe\" \"%1\""

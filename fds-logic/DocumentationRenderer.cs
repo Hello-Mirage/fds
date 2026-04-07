@@ -5,81 +5,478 @@ namespace FdsLogic;
 
 public static class DocumentationRenderer
 {
-    private static readonly SKColor BackgroundColor = new SKColor(15, 15, 15);
-    private static readonly SKColor AccentColor = SKColors.Cyan;
-    private static readonly SKColor TextColor = SKColors.White;
-    private static readonly SKColor SubtextColor = SKColors.Gray;
+    private static readonly SKColor Bg = new SKColor(8, 8, 12);
+    private static readonly SKColor Cyan = new SKColor(0, 255, 255);
+    private static readonly SKColor Green = new SKColor(76, 175, 80);
+    private static readonly SKColor Purple = new SKColor(150, 100, 255);
+    private static readonly SKColor Orange = new SKColor(255, 165, 0);
+    private static readonly SKColor White = SKColors.White;
+    private static readonly SKColor Gray = new SKColor(140, 140, 140);
+    private static readonly SKColor DarkGray = new SKColor(80, 80, 80);
+    private static readonly SKColor CardBg = new SKColor(16, 16, 22);
+    private static readonly SKColor BorderColor = new SKColor(40, 40, 50);
 
-    public static void Render(SKCanvas canvas, float width, float height, float scrollOffset)
+    private static string _clickNotification = "";
+    private static double _notificationTime = 0;
+    private static string _currentPage = "Home"; // Routing state: Home, Docs, QuickStart
+
+    private struct LayoutContext
     {
-        float time = (float)DateTime.Now.TimeOfDay.TotalSeconds;
-        canvas.Clear(BackgroundColor);
+        public float Margin, ContentW, Left, HeroH, BadgeY, TitleSize, SubY, TagY, BtnY, BtnW, BtnH, BtnGap;
+        public float DocsX, DocsY, StatsY;
+        public bool IsMobile;
+    }
 
-        bool isMobile = width < 580;
-        float margin = width * 0.04f;
-        float contentWidth = width - margin * 2;
+    private static LayoutContext GetLayout(float width, float height)
+    {
+        var ctx = new LayoutContext();
+        ctx.IsMobile = width < 600;
+        ctx.Margin = Math.Max(width * 0.06f, 24);
+        ctx.ContentW = Math.Min(width - ctx.Margin * 2, 900);
+        ctx.Left = (width - ctx.ContentW) / 2;
+        ctx.HeroH = ctx.IsMobile ? height * 0.85f : height * 0.9f;
+        ctx.BadgeY = ctx.HeroH * 0.25f;
+        ctx.TitleSize = ctx.IsMobile ? 48 : Math.Min(ctx.ContentW * 0.1f, 84);
+        ctx.SubY = ctx.BadgeY + 50 + ctx.TitleSize + 10;
+        ctx.TagY = ctx.SubY + 30;
+        ctx.BtnY = ctx.TagY + 60;
+        ctx.BtnW = ctx.IsMobile ? ctx.ContentW : 200;
+        ctx.BtnH = 48;
+        ctx.BtnGap = 16;
 
-        DrawAnimatedBackground(canvas, width, height, time);
+        ctx.DocsX = ctx.IsMobile ? ctx.Left : ctx.Left + ctx.BtnW + ctx.BtnGap;
+        ctx.DocsY = ctx.IsMobile ? ctx.BtnY + ctx.BtnH + 12 : ctx.BtnY;
 
+        float effectiveBtnBottom = ctx.IsMobile ? ctx.DocsY + ctx.BtnH : ctx.BtnY + ctx.BtnH;
+        ctx.StatsY = ctx.IsMobile ? effectiveBtnBottom + 40 : effectiveBtnBottom + 50;
+
+        return ctx;
+    }
+
+    public static void HandleClick(float x, float y, float width, float height, float scrollOffset)
+    {
+        var ctx = GetLayout(width, height);
+        float worldY = y + scrollOffset;
+
+        // --- Persistent Navigation Bar Click Handling ---
+        float navH = 64;
+        if (y < navH)
+        {
+            float navLeft = ctx.Left;
+            if (x >= navLeft && x <= navLeft + 80)
+            {
+                _currentPage = "Home";
+                return;
+            }
+            if (x >= navLeft + 100 && x <= navLeft + 160)
+            {
+                _currentPage = "Docs";
+                return;
+            }
+            if (x >= navLeft + 180 && x <= navLeft + 300)
+            {
+                _currentPage = "QuickStart";
+                return;
+            }
+        }
+
+        // --- Page Specific Click Handling ---
+        if (_currentPage == "Home")
+        {
+            // Hit test GET STARTED -> QuickStart
+            if (x >= ctx.Left && x <= ctx.Left + ctx.BtnW && worldY >= ctx.BtnY && worldY <= ctx.BtnY + ctx.BtnH)
+            {
+                _currentPage = "QuickStart";
+            }
+            // Hit test VIEW DOCS -> Docs
+            else if (x >= ctx.DocsX && x <= ctx.DocsX + ctx.BtnW && worldY >= ctx.DocsY && worldY <= ctx.DocsY + ctx.BtnH)
+            {
+                _currentPage = "Docs";
+            }
+        }
+        else
+        {
+            // Basic notification for other pages to confirm interactivity
+            _clickNotification = "Interaction Recieved!";
+            _notificationTime = DateTime.Now.TimeOfDay.TotalSeconds;
+        }
+    }
+
+    public static float Render(SKCanvas canvas, float width, float height, float scrollOffset)
+    {
+        double currentTime = DateTime.Now.TimeOfDay.TotalSeconds;
+        float time = (float)currentTime;
+        canvas.Clear(Bg);
+
+        var ctx = GetLayout(width, height);
+
+        // 1. Persistent Background Layer
+        DrawGridBackground(canvas, width, height, scrollOffset, time);
+
+        // 2. Main content rendering based on state
         canvas.Save();
+        canvas.ClipRect(new SKRect(0, 0, width, height));
         canvas.Translate(0, -scrollOffset);
 
-        // Header
-        float headerHeight = isMobile ? height * 0.15f : height * 0.22f;
-        DrawHeader(canvas, margin, 0, contentWidth, headerHeight, time);
+        float y = 0;
+        
+        // Add top padding for Navigation Bar
+        y += 80;
 
-        // Content
-        float currentY = headerHeight + margin;
-        
-        DrawSectionHeader(canvas, "WASM NATIVE ENGINE", margin, currentY, Math.Clamp(width * 0.022f, 10, 16));
-        currentY += 40;
-        
-        DrawGlassCard(canvas, margin, currentY, contentWidth, 120, "LOCAL EXECUTION", "This UI is now running locally on your device via a server-provided binary module. Zero network latency for rendering.");
-        
+        switch (_currentPage)
+        {
+            case "Home":
+                y = RenderHomePage(canvas, ctx, time, y);
+                break;
+            case "Docs":
+                y = RenderDocsPage(canvas, ctx, time, y);
+                break;
+            case "QuickStart":
+                y = RenderQuickStartPage(canvas, ctx, time, y);
+                break;
+        }
+
+        y += 80; // Bottom spacing
+
+        // 3. Persistent UI Overlay (Toast)
+        if (!string.IsNullOrEmpty(_clickNotification) && currentTime - _notificationTime < 3.0)
+        {
+            float alpha = (float)Math.Min(1.0, (3.0 - (currentTime - _notificationTime)) * 2.0);
+            DrawToast(canvas, width, height, _clickNotification, alpha);
+        }
+
         canvas.Restore();
+
+        // 4. Persistent Nav Bar (Static on Screen)
+        RenderNavBar(canvas, width, ctx, time);
+
+        return y;
+    }
+
+    private static void RenderNavBar(SKCanvas canvas, float width, LayoutContext ctx, float time)
+    {
+        float navH = 64;
+        var rect = new SKRect(0, 0, width, navH);
         
-        // Footer
-        DrawFooter(canvas, width, height, height * 0.08f, time);
+        using var bg = new SKPaint { Color = Bg.WithAlpha(230), IsAntialias = true };
+        canvas.DrawRect(rect, bg);
+        
+        using var border = new SKPaint { Color = BorderColor, StrokeWidth = 1 };
+        canvas.DrawLine(0, navH, width, navH, border);
+
+        float navLeft = ctx.Left;
+        
+        // Logo
+        using var logoP = new SKPaint { Color = Cyan, TextSize = 22, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold) };
+        canvas.DrawText("FDS", navLeft, 40, logoP);
+
+        // Nav Links
+        using var linkP = new SKPaint { Color = White, TextSize = 14, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas") };
+        
+        linkP.Color = _currentPage == "Docs" ? Cyan : White;
+        canvas.DrawText("DOCS", navLeft + 100, 38, linkP);
+        
+        linkP.Color = _currentPage == "QuickStart" ? Cyan : White;
+        canvas.DrawText("QUICK START", navLeft + 180, 38, linkP);
+
+        if (_currentPage != "Home")
+        {
+            using var homeP = new SKPaint { Color = DarkGray, TextSize = 10, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas") };
+            canvas.DrawText("<< Back Home", navLeft, 55, homeP);
+        }
     }
 
-    private static void DrawAnimatedBackground(SKCanvas canvas, float width, float height, float time)
+    private static float RenderHomePage(SKCanvas canvas, LayoutContext ctx, float time, float y)
     {
-        float x1 = width * 0.5f + (float)Math.Sin(time * 0.5f) * width * 0.12f;
-        float y1 = height * 0.3f + (float)Math.Cos(time * 0.3f) * height * 0.1f;
-        using var paint1 = new SKPaint { Shader = SKShader.CreateRadialGradient(new SKPoint(x1, y1), width * 0.6f, new SKColor[] { new SKColor(0, 80, 100, 30), SKColors.Transparent }, null, SKShaderTileMode.Clamp) };
-        canvas.DrawRect(0, 0, width, height, paint1);
+        // Hero Decorations
+        float heroY = y;
+        DrawGlowOrb(canvas, ctx.Margin + ctx.ContentW * 0.7f, heroY + ctx.HeroH * 0.3f, ctx.ContentW * 0.4f, time, new SKColor(0, 100, 120, 20));
+        
+        DrawPulsingBadge(canvas, ctx.Left, heroY + ctx.BadgeY, "WASM-NATIVE RUNTIME", time);
+        DrawGradientText(canvas, "FDS", ctx.Left, heroY + ctx.BadgeY + 50, ctx.TitleSize, time);
+        
+        DrawWrappedText(canvas, "Stream UI logic, not pixels. Zero-latency rendering at the edge.", ctx.Left, heroY + ctx.TagY, ctx.ContentW, ctx.IsMobile ? 15 : 18, new SKColor(180, 180, 190));
+
+        // CTA Buttons
+        DrawButton(canvas, ctx.Left, heroY + ctx.BtnY, ctx.BtnW, ctx.BtnH, "GET STARTED", Cyan, time, true);
+        DrawButton(canvas, ctx.DocsX, heroY + ctx.DocsY, ctx.BtnW, ctx.BtnH, "VIEW DOCS", Purple, time, false);
+
+        y += ctx.HeroH;
+
+        // Features Grid
+        y += 40;
+        DrawSectionTitle(canvas, "FEATURES", ctx.Left, y, ctx.ContentW + ctx.Left * 2, time);
+        y += 50;
+        
+        float featureW = ctx.IsMobile ? ctx.ContentW : (ctx.ContentW - 16) / 2;
+        float fh = 120;
+        DrawFeatureCardFixed(canvas, ctx.Left, y, featureW, fh, "Zero Chromium", "No V8, no Blink, no WebView overhead. Pure native Skia.", Cyan);
+        DrawFeatureCardFixed(canvas, ctx.Left + featureW + 16, y, featureW, fh, "WASM-Native Logic", "UI logic compiled once, distributed anywhere.", Purple);
+        y += fh + 12;
+        DrawFeatureCardFixed(canvas, ctx.Left, y, featureW, fh, "Chunked Streaming", "64KB packet delivery with real-time compilation.", Green);
+        DrawFeatureCardFixed(canvas, ctx.Left + featureW + 16, y, featureW, fh, "Pixel-Perfect Skia", "Hardware-accelerated rendering with full anti-aliasing.", Orange);
+        y += fh;
+
+        return y;
     }
 
-    private static void DrawHeader(SKCanvas canvas, float x, float y, float w, float h, float time)
+    private static float RenderDocsPage(SKCanvas canvas, LayoutContext ctx, float time, float y)
     {
-        using var paint = new SKPaint { Color = AccentColor, TextSize = h * 0.5f, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Arial", SKFontStyle.Bold) };
-        canvas.DrawText("FDS WASM", x, y + h * 0.7f, paint);
+        DrawSectionTitle(canvas, "DOCS: ARCHITECTURE", ctx.Left, y, ctx.ContentW + ctx.Left * 2, time);
+        y += 60;
+
+        y = DrawWrappedText(canvas, "FDS (Fast Drawing Streamer) is a distributed architecture for remote user interfaces. Instead of streaming heavy video frames, FDS streams UI logic modules and executes them locally on the client using a native Skia engine.", ctx.Left, y, ctx.ContentW, 16, Gray);
+        y += 40;
+
+        using var sectionP = new SKPaint { Color = Cyan, TextSize = 18, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold) };
+        canvas.DrawText("[ The Architecture ]", ctx.Left, y, sectionP);
+        y += 30;
+
+        y = DrawWrappedText(canvas, "FDS uses a V3 Logic Distribution Protocol. The Streamer acts as the authoritative state provider and binary module distributor, while the Client serves as the high-fidelity host.", ctx.Left, y, ctx.ContentW, 14, White);
+        y += 40;
+
+        canvas.DrawText("[ Performance Benefits ]", ctx.Left, y, sectionP);
+        y += 30;
+        y = DrawWrappedText(canvas, "Because the Render logic resides on the client, resizing the window or scrolling has 0ms latency, even on high-latency connections. This eliminates browser overhead and network-induced jitter.", ctx.Left, y, ctx.ContentW, 14, White);
+
+        return y;
     }
 
-    private static void DrawSectionHeader(SKCanvas canvas, string title, float x, float y, float textSize)
+    private static float RenderQuickStartPage(SKCanvas canvas, LayoutContext ctx, float time, float y)
     {
-        using var paint = new SKPaint { Color = AccentColor, TextSize = textSize, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Arial", SKFontStyle.Bold) };
-        canvas.DrawText(title, x, y, paint);
+        DrawSectionTitle(canvas, "QUICK START GUIDE", ctx.Left, y, ctx.ContentW + ctx.Left * 2, time);
+        y += 60;
+
+        y = DrawWrappedText(canvas, "Developing apps for FDS involves defining a Skia drawing loop in a class library and compiling it for distribution.", ctx.Left, y, ctx.ContentW, 16, Gray);
+        y += 40;
+
+        using var h3 = new SKPaint { Color = Green, TextSize = 18, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold) };
+        canvas.DrawText("1. Create logic module", ctx.Left, y, h3);
+        y += 30;
+        
+        y = DrawTerminalBlock(canvas, ctx.Left, y, ctx.ContentW, new[] {
+            "$ dotnet new classlib -n MyFdsApp",
+            "$ dotnet add package SkiaSharp --version 2.88.9"
+        }, time);
+        y += 40;
+
+        canvas.DrawText("2. Compile & Stream", ctx.Left, y, h3);
+        y += 30;
+        y = DrawTerminalBlock(canvas, ctx.Left, y, ctx.ContentW, new[] {
+            "$ dotnet build -c Release",
+            "$ python run.py"
+        }, time);
+
+        return y;
     }
 
-    private static void DrawGlassCard(SKCanvas canvas, float x, float y, float w, float h, string title, string description)
+    // --- Drawing Primitives (Shared) ---
+
+    private static void DrawTextCentered(SKCanvas c, string text, float w, float y, float size, SKColor color)
+    {
+        using var p = new SKPaint { Color = color, TextSize = size, IsAntialias = true, TextAlign = SKTextAlign.Center, Typeface = SKTypeface.FromFamilyName("Consolas") };
+        c.DrawText(text, w / 2, y + size, p);
+    }
+
+    private static void DrawGridBackground(SKCanvas c, float w, float h, float scroll, float time)
+    {
+        using var p = new SKPaint { Color = new SKColor(30, 30, 40, 15), StrokeWidth = 1 };
+        float spacing = 60;
+        float offsetY = -(scroll % spacing);
+        for (float gy = offsetY; gy < h; gy += spacing) c.DrawLine(0, gy, w, gy, p);
+        for (float gx = 0; gx < w; gx += spacing) c.DrawLine(gx, 0, gx, h, p);
+    }
+
+    private static void DrawGlowOrb(SKCanvas c, float x, float y, float r, float time, SKColor color)
+    {
+        float pulse = 1.0f + (float)Math.Sin(time * 0.5f) * 0.15f;
+        using var p = new SKPaint { Shader = SKShader.CreateRadialGradient(new SKPoint(x, y), r * pulse, new[] { color, SKColors.Transparent }, null, SKShaderTileMode.Clamp) };
+        c.DrawCircle(x, y, r * pulse, p);
+    }
+
+    private static void DrawPulsingBadge(SKCanvas c, float x, float y, string text, float time)
+    {
+        using var tp = new SKPaint { Color = Cyan, TextSize = 10, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold) };
+        float tw = tp.MeasureText(text);
+        var rect = new SKRect(x, y, x + tw + 20, y + 24);
+        float alpha = 180 + (float)Math.Sin(time * 3) * 75;
+        using var borderP = new SKPaint { Color = Cyan.WithAlpha((byte)alpha), Style = SKPaintStyle.Stroke, StrokeWidth = 1.5f, IsAntialias = true };
+        c.DrawRoundRect(rect, 12, 12, borderP);
+        using var bgP = new SKPaint { Color = new SKColor(0, 255, 255, 20) };
+        c.DrawRoundRect(rect, 12, 12, bgP);
+        c.DrawText(text, x + 10, y + 16, tp);
+    }
+
+    private static void DrawGradientText(SKCanvas c, string text, float x, float y, float size, float time)
+    {
+        float shift = time * 50;
+        using var p = new SKPaint
+        {
+            TextSize = size, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold),
+            Shader = SKShader.CreateLinearGradient(new SKPoint(x + shift % 200, y), new SKPoint(x + 300 + shift % 200, y + size), new[] { Cyan, Purple, Cyan }, null, SKShaderTileMode.Mirror)
+        };
+        c.DrawText(text, x, y + size, p);
+    }
+
+    private static void DrawButton(SKCanvas c, float x, float y, float w, float h, string text, SKColor accent, float time, bool primary)
     {
         var rect = new SKRect(x, y, x + w, y + h);
-        using var paint = new SKPaint { Color = new SKColor(40, 40, 40, 180), IsAntialias = true };
-        canvas.DrawRoundRect(rect, 10, 10, paint);
-        
-        paint.Color = AccentColor;
-        paint.TextSize = 18;
-        canvas.DrawText(title, x + 15, y + 30, paint);
-        
-        paint.Color = SKColors.White;
-        paint.TextSize = 14;
-        canvas.DrawText(description, x + 15, y + 60, paint);
+        if (primary)
+        {
+            using var glow = new SKPaint { Color = accent.WithAlpha(30), MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, 12) };
+            c.DrawRoundRect(rect, 8, 8, glow);
+            using var bg = new SKPaint { Shader = SKShader.CreateLinearGradient(new SKPoint(x, y), new SKPoint(x + w, y + h), new[] { accent, accent.WithAlpha(180) }, null, SKShaderTileMode.Clamp), IsAntialias = true };
+            c.DrawRoundRect(rect, 8, 8, bg);
+            using var tp = new SKPaint { Color = Bg, TextSize = 14, IsAntialias = true, TextAlign = SKTextAlign.Center, Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold) };
+            c.DrawText(text, x + w / 2, y + h / 2 + 5, tp);
+        }
+        else
+        {
+            using var border = new SKPaint { Color = accent, Style = SKPaintStyle.Stroke, StrokeWidth = 1.5f, IsAntialias = true };
+            c.DrawRoundRect(rect, 8, 8, border);
+            using var tp = new SKPaint { Color = accent, TextSize = 14, IsAntialias = true, TextAlign = SKTextAlign.Center, Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold) };
+            c.DrawText(text, x + w / 2, y + h / 2 + 5, tp);
+        }
     }
 
-    private static void DrawFooter(SKCanvas canvas, float width, float height, float footerHeight, float time)
+    private static void DrawAnimatedStat(SKCanvas c, float x, float y, float w, string value, string label, float time, float delay)
     {
-        using var paint = new SKPaint { Color = SubtextColor, TextSize = 12, IsAntialias = true, TextAlign = SKTextAlign.Center };
-        canvas.DrawText($"WASM RUNTIME ACTIVE | {time:F1}s", width / 2, height - 20, paint);
+        float p = Math.Clamp((time - delay) * 0.5f, 0, 1);
+        byte alpha = (byte)((float)Math.Pow(p, 0.5) * 255);
+        using var vp = new SKPaint { Color = White.WithAlpha(alpha), TextSize = 28, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold) };
+        c.DrawText(value, x + 8, y + 28, vp);
+        using var lp = new SKPaint { Color = DarkGray.WithAlpha(alpha), TextSize = 12, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas") };
+        c.DrawText(label, x + 8, y + 48, lp);
+    }
+
+    private static void DrawScrollIndicator(SKCanvas c, float w, float y, float time)
+    {
+        float bounce = (float)Math.Sin(time * 2.5) * 6;
+        float cx = w / 2;
+        using var p = new SKPaint { Color = DarkGray, StrokeWidth = 2, IsAntialias = true, Style = SKPaintStyle.Stroke };
+        c.DrawLine(cx - 8, y + bounce, cx, y + 8 + bounce, p);
+        c.DrawLine(cx, y + 8 + bounce, cx + 8, y + bounce, p);
+    }
+
+    private static void DrawSectionTitle(SKCanvas c, string text, float x, float y, float w, float time)
+    {
+        using var p = new SKPaint { Color = White, TextSize = 24, IsAntialias = true, TextAlign = SKTextAlign.Center, Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold) };
+        c.DrawText(text, w / 2, y + 24, p);
+        float tw = p.MeasureText(text);
+        using var lp = new SKPaint { Color = Cyan.WithAlpha(80), StrokeWidth = 2, IsAntialias = true };
+        c.DrawLine(w / 2 - tw / 2, y + 34, w / 2 + tw / 2, y + 34, lp);
+    }
+
+    private static float DrawStepCard(SKCanvas c, float x, float y, float w, string num, string title, string desc, SKColor accent, float time)
+    {
+        float h = 140;
+        var rect = new SKRect(x, y, x + w, y + h);
+        using var bg = new SKPaint { Color = CardBg, IsAntialias = true };
+        c.DrawRoundRect(rect, 10, 10, bg);
+        using var np = new SKPaint { Color = accent.WithAlpha(40), TextSize = 50, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold) };
+        c.DrawText(num, x + w - 60, y + 55, np);
+        using var tp = new SKPaint { Color = accent, TextSize = 18, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold) };
+        c.DrawText(title, x + 16, y + 30, tp);
+        DrawWrappedText(c, desc, x + 16, y + 50, w - 32, 13, Gray);
+        return y + h;
+    }
+
+    private static void DrawStepCardFixed(SKCanvas c, float x, float y, float w, float h, string num, string title, string desc, SKColor accent, float time)
+    {
+        var rect = new SKRect(x, y, x + w, y + h);
+        using var bg = new SKPaint { Color = CardBg, IsAntialias = true };
+        c.DrawRoundRect(rect, 10, 10, bg);
+        using var np = new SKPaint { Color = accent.WithAlpha(40), TextSize = 40, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold) };
+        c.DrawText(num, x + w - 50, y + 45, np);
+        using var tp = new SKPaint { Color = accent, TextSize = 16, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold) };
+        c.DrawText(title, x + 12, y + 25, tp);
+        DrawWrappedText(c, desc, x + 12, y + 42, w - 24, 12, Gray);
+    }
+
+    private static float DrawFeatureCardFixed(SKCanvas c, float x, float y, float w, float h, string title, string desc, SKColor accent)
+    {
+        var rect = new SKRect(x, y, x + w, y + h);
+        using var bg = new SKPaint { Color = CardBg, IsAntialias = true };
+        c.DrawRoundRect(rect, 10, 10, bg);
+        using var tp = new SKPaint { Color = accent, TextSize = 16, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold) };
+        c.DrawText(title, x + 12, y + 25, tp);
+        DrawWrappedText(c, desc, x + 12, y + 42, w - 24, 12, Gray);
+        return y + h;
+    }
+
+    private static float DrawFeatureCard(SKCanvas c, float x, float y, float w, string title, string desc, SKColor accent)
+    {
+        float h = 100;
+        var rect = new SKRect(x, y, x + w, y + h);
+        using var bg = new SKPaint { Color = CardBg, IsAntialias = true };
+        c.DrawRoundRect(rect, 10, 10, bg);
+        using var tp = new SKPaint { Color = accent, TextSize = 18, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold) };
+        c.DrawText(title, x + 16, y + 30, tp);
+        DrawWrappedText(c, desc, x + 16, y + 50, w - 32, 13, Gray);
+        return y + h;
+    }
+
+    private static float DrawLiveCodeBlock(SKCanvas c, float x, float y, float w, float time)
+    {
+        string[] lines = { "namespace FdsApp;", "public static class UI {", "  public static float Render(SKCanvas c) {", "    c.Clear(SKColors.Black);", "    return 200;", "  }", "}" };
+        float h = 36 + 20 + lines.Length * 18 + 20;
+        var rect = new SKRect(x, y, x + w, y + h);
+        using var bg = new SKPaint { Color = new SKColor(12, 12, 18), IsAntialias = true };
+        c.DrawRoundRect(rect, 10, 10, bg);
+        using var tp = new SKPaint { Color = Gray, TextSize = 13, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas") };
+        for (int i = 0; i < lines.Length; i++) c.DrawText(lines[i], x + 16, y + 60 + i * 18, tp);
+        return y + h;
+    }
+
+    private static float DrawComparisonRow(SKCanvas c, float x, float y, float w, string c1, string c2, string c3, bool header = false)
+    {
+        float rowH = 36;
+        if (header) c.DrawRect(x, y, w, rowH, new SKPaint { Color = new SKColor(20, 20, 28) });
+        using var p = new SKPaint { Color = header ? Cyan : Gray, TextSize = 13, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas", header ? SKFontStyle.Bold : SKFontStyle.Normal) };
+        c.DrawText(c1, x + 16, y + 23, p);
+        c.DrawText(c2, x + w * 0.35f, y + 23, p);
+        c.DrawText(c3, x + w * 0.7f, y + 23, p);
+        return y + rowH;
+    }
+
+    private static float DrawTerminalBlock(SKCanvas c, float x, float y, float w, string[] lines, float time)
+    {
+        float h = 36 + 20 + lines.Length * 20 + 20;
+        var rect = new SKRect(x, y, x + w, y + h);
+        using var bg = new SKPaint { Color = new SKColor(5, 5, 8), IsAntialias = true };
+        c.DrawRoundRect(rect, 10, 10, bg);
+        using var tp = new SKPaint { Color = Gray, TextSize = 13, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas") };
+        for (int i = 0; i < lines.Length; i++) c.DrawText(lines[i], x + 16, y + 60 + i * 20, tp);
+        return y + h;
+    }
+
+    private static float DrawWrappedText(SKCanvas c, string text, float x, float y, float maxW, float size, SKColor color)
+    {
+        using var p = new SKPaint { Color = color, TextSize = size, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas") };
+        float lineH = size + 6;
+        var words = text.Split(' '); string line = "";
+        foreach (var word in words) {
+            string test = line == "" ? word : line + " " + word;
+            if (p.MeasureText(test) > maxW) { c.DrawText(line, x, y + size, p); y += lineH; line = word; }
+            else line = test;
+        }
+        c.DrawText(line, x, y + size, p); return y + lineH;
+    }
+
+    private static void DrawToast(SKCanvas c, float w, float h, string text, float alpha)
+    {
+        using var p = new SKPaint { Color = Cyan, TextSize = 14, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold) };
+        float tw = p.MeasureText(text);
+        var rect = new SKRect((w - tw) / 2 - 20, h - 80, (w + tw) / 2 + 20, h - 40);
+        using var bg = new SKPaint { Color = CardBg.WithAlpha((byte)(220 * alpha)), IsAntialias = true };
+        c.DrawRoundRect(rect, 20, 20, bg);
+        p.Color = White.WithAlpha((byte)(255 * alpha));
+        c.DrawText(text, (w - tw) / 2, h - 54, p);
+    }
+
+    private static void DrawLine(SKCanvas c, float x, float y, float w, SKColor color)
+    {
+        using var p = new SKPaint { Color = color, StrokeWidth = 1 };
+        c.DrawLine(x, y, x + w, y, p);
     }
 }

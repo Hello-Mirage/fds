@@ -41,12 +41,12 @@ class Program
                 var moduleData = File.ReadAllBytes(dllPath);
 
                 // 2. Send Module via Chunked Streaming Protocol
-                Console.WriteLine($"Streamer: Streaming UI Logic Module ({moduleData.Length} bytes) in 4KB chunks...");
+                Console.WriteLine($"Streamer: Streaming UI Logic Module ({moduleData.Length} bytes) in 64KB chunks...");
                 
                 // Header: [Total Length] (4 bytes)
                 await stream.WriteAsync(BitConverter.GetBytes(moduleData.Length), 0, 4);
                 
-                int chunkSize = 4096;
+                int chunkSize = 65536;
                 int offset = 0;
                 while (offset < moduleData.Length)
                 {

@@ -20,23 +20,18 @@ Key Features
 ___________________________
 
   - Zero-Chromium: No V8, no Blink, no WebView overhead.
+  - Zero-Latency Input: Interaction hit-tests (HandleClick) occur locally on the client.
+  - Skia-Native Routing: Multi-page navigation managed entirely within the logic module.
   - WASM-Native: UI logic is written once and executed everywhere at near-native speeds.
-  - Chunked Streaming: Modules are delivered in segments with real-time compilation feedback.
-  - Skia-First: Pixel-perfect rendering across all platforms.
-
-
-Documentation Index
-___________________________
-
-  - docs/DEVELOPING_APPS.md   How to build your first FDS application.
-  - docs/ARCHITECTURE.md      Deep dive into the WASM-Chunked Streaming protocol.
+  - Custom Protocol (fds://): Browser-to-native workflow for seamless app delivery.
+  - Chunked Streaming: 64KB packet delivery with real-time compilation feedback.
 
 
 Getting Started
 ___________________________
 
-  1. Launch Streamer:
-     dotnet run --project streamer/StreamerServer.csproj
+  1. Launch all services:
+     python run.py
 
-  2. Launch Client:
-     dotnet run --project fds-client/FdsClient.csproj
+  2. Install Protocol Handler:
+     Import install_fds_protocol.reg to enable browser links.

@@ -22,11 +22,19 @@ Ensure you have the .NET 10 SDK installed.
   1. Clone and Build:
      dotnet build
 
-  2. Start Streamer (Logic Provider):
-     dotnet run --project streamer/StreamerServer.csproj
+  2. One-Click Launch (All Services):
+     python run.py
 
-  3. Start Client (Logic Host):
-     dotnet run --project fds-client/FdsClient.csproj
+  3. Custom Protocol Integration:
+     Import install_fds_protocol.reg to enable fds:// browser links.
+
+Core Features
+___________________________
+
+  - WASM-Native Logic: UI logic is streamed as binary chunks and executed at native speed.
+  - Zero-Latency Input: Interaction hit-tests occur locally on the client (0ms delay).
+  - Skia-Native Routing: Multi-page navigation (Home, Docs, QuickStart) managed within the logic bundle.
+  - Custom Protocol (fds://): Launch native UI sessions directly from any browser or website.
 
 
 Project Structure
