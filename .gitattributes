@@ -1,0 +1,7 @@
+# Mark third-party or generated files as vendored to exclude them from language stats
+fds-site/wwwroot/**/* linguist-vendored
+fds-site/bin/**/* linguist-vendored
+fds-site/obj/**/* linguist-vendored
+
+# Ensure C# is recognized as the primary logic
+*.cs linguist-detectable=true
