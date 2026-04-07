@@ -1,0 +1,66 @@
+@page "/"
+
+<div class="main-container" style="background: #000; color: #fff; font-family: 'Segoe UI', sans-serif; min-height: 100vh; padding: 40px;">
+    <header style="border-bottom: 1px solid #333; padding-bottom: 20px; margin-bottom: 40px;">
+        <div style="background: #00ffff; color: #000; display: inline-block; padding: 4px 12px; font-weight: bold; border-radius: 4px; font-size: 12px; margin-bottom: 10px;">
+            WASM CORE
+        </div>
+        <h1 style="font-size: 64px; margin: 0; color: #00ffff;">FDS</h1>
+        <p style="font-size: 20px; color: #888;">Fast Drawing Streamer - Documentation Site</p>
+    </header>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
+        <section>
+            <h2 style="color: #00ffff; border-left: 4px solid #00ffff; padding-left: 15px;">Project Overview</h2>
+            <p style="line-height: 1.6; font-size: 18px; color: #ccc;">
+                FDS is a light-weight remote rendering protocol built on <strong>.NET 10</strong>.
+                Unlike traditional remote desktops that send pixel buffers, FDS streams 
+                <strong>serialized SkiaSharp drawing commands</strong> directly to the client.
+            </p>
+            
+            <div style="background: #111; padding: 20px; border-radius: 8px; margin-top: 20px;">
+                <h3 style="margin-top: 0;">System Performance</h3>
+                <div style="display: flex; gap: 20px; align-items: center;">
+                    <div style="flex: 1;">
+                        <span style="font-size: 14px; color: #666;">Latency</span>
+                        <div style="background: #222; height: 8px; border-radius: 4px; margin-top: 4px;">
+                            <div style="background: #00ff00; width: 10%; height: 100%; border-radius: 4px;"></div>
+                        </div>
+                    </div>
+                    <div style="flex: 1;">
+                        <span style="font-size: 14px; color: #666;">Bandwidth</span>
+                        <div style="background: #222; height: 8px; border-radius: 4px; margin-top: 4px;">
+                            <div style="background: #00ffff; width: 5%; height: 100%; border-radius: 4px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2 style="color: #00ffff; border-left: 4px solid #00ffff; padding-left: 15px;">Architecture</h2>
+            <ul style="list-style: none; padding: 0;">
+                <li style="margin-bottom: 20px; background: #111; padding: 15px; border-radius: 8px; border-right: 2px solid #00ffff;">
+                    <strong style="color: #00ffff; display: block; margin-bottom: 5px;">StreamerServer</strong>
+                    Records commands into <code>SKPicture</code> and broadcasts to TCP listeners.
+                </li>
+                <li style="margin-bottom: 20px; background: #111; padding: 15px; border-radius: 8px; border-right: 2px solid #00ffff;">
+                    <strong style="color: #00ffff; display: block; margin-bottom: 5px;">TcpStreamer</strong>
+                    High-speed serialization using <code>BinaryWriter</code>.
+                </li>
+                <li style="margin-bottom: 20px; background: #111; padding: 15px; border-radius: 8px; border-right: 2px solid #00ffff;">
+                    <strong style="color: #00ffff; display: block; margin-bottom: 5px;">FdsClient</strong>
+                    Avalonia-based UI that paints results locally at 60 FPS.
+                </li>
+            </ul>
+        </section>
+    </div>
+
+    <footer style="margin-top: 60px; color: #444; font-size: 12px; text-align: center; border-top: 1px solid #222; padding-top: 20px;">
+        Rendered via Blazor WebAssembly | @(DateTime.Now.ToString("yyyy-MM-dd"))
+    </footer>
+</div>
+
+@code {
+    // C# logic can go here for additional interactivity
+}
