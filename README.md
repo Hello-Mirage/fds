@@ -52,3 +52,10 @@ Project Structure
   fds-client/    The Avalonia client that hosts the local Skia engine.
   fds-logic/     A sample application module compiled for remote distribution.
   docs/          Technical documentation and developer guides.
+
+___________________________
+
+License
+___________________________
+
+This project is licensed under the MIT License - see the LICENSE file for details.
