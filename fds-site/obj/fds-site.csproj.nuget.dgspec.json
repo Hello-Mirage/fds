@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "d:\\fds\\fds-site\\fds-site.csproj": {}
+    "D:\\fds\\fds-site\\fds-site.csproj": {}
   },
   "projects": {
-    "d:\\fds\\fds-site\\fds-site.csproj": {
+    "D:\\fds\\fds-site\\fds-site.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "d:\\fds\\fds-site\\fds-site.csproj",
+        "projectUniqueName": "D:\\fds\\fds-site\\fds-site.csproj",
         "projectName": "fds-site",
-        "projectPath": "d:\\fds\\fds-site\\fds-site.csproj",
+        "projectPath": "D:\\fds\\fds-site\\fds-site.csproj",
         "packagesPath": "C:\\Users\\MOSTAFUR RAHAMAN\\.nuget\\packages\\",
-        "outputPath": "d:\\fds\\fds-site\\obj\\",
+        "outputPath": "D:\\fds\\fds-site\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\MOSTAFUR RAHAMAN\\AppData\\Roaming\\NuGet\\NuGet.Config"
