@@ -48,3 +48,4 @@ d:\fds\streamer\obj\Debug\net10.0\refint\StreamerServer.dll
 d:\fds\streamer\obj\Debug\net10.0\StreamerServer.pdb
 d:\fds\streamer\obj\Debug\net10.0\StreamerServer.genruntimeconfig.cache
 d:\fds\streamer\obj\Debug\net10.0\ref\StreamerServer.dll
+d:\fds\streamer\obj\Debug\net10.0\StreamerServer.sourcelink.json

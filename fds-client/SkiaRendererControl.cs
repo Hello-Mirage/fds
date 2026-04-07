@@ -11,6 +11,7 @@ using Avalonia.Platform;
 using Avalonia.Rendering.SceneGraph;
 using Avalonia.Skia;
 using Avalonia.Threading;
+using Avalonia.Interactivity;
 using SkiaSharp;
 
 namespace FdsClient;
@@ -34,9 +35,12 @@ public class SkiaRendererControl : Control
         Task.Run(() => ConnectInputChannel(_cts.Token));
         this.PointerPressed += OnPointerPressed;
         
+        // Use AddHandler to ensure we capture events reliably
+        this.AddHandler(InputElement.PointerWheelChangedEvent, (s, e) => OnPointerWheelChangedInternal(e), RoutingStrategies.Tunnel | RoutingStrategies.Bubble, true);
+
         // Ensure we can receive wheel events
         this.Focusable = true;
-        this.Background = Brushes.Transparent;
+        this.IsHitTestVisible = true;
         this.AttachedToVisualTree += (s, e) => this.Focus();
 
         // Ensure size sync on any layout update
@@ -147,9 +151,8 @@ public class SkiaRendererControl : Control
         });
     }
 
-    protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
+    private void OnPointerWheelChangedInternal(PointerWheelEventArgs e)
     {
-        base.OnPointerWheelChanged(e);
         float dy = (float)e.Delta.Y;
         Console.WriteLine($"Client: Scroll Delta captured: {dy}");
         var stream = _inputStream;
@@ -170,6 +173,12 @@ public class SkiaRendererControl : Control
             catch { /* ignore */ }
             finally { _streamLock.Release(); }
         });
+    }
+
+    protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
+    {
+        base.OnPointerWheelChanged(e);
+        // This is now handled by the AddHandler for extra robustness
     }
 
     private async Task ListenForDrawingCommands(CancellationToken ct)
@@ -250,6 +259,9 @@ public class SkiaRendererControl : Control
 
     public override void Render(DrawingContext context)
     {
+        // Ensure hit-testing works by drawing a transparent rect covering the entire bounds
+        context.DrawRectangle(Avalonia.Media.Brushes.Transparent, null, new Rect(0, 0, Bounds.Width, Bounds.Height));
+        
         lock (_syncRoot)
         {
             context.Custom(new SkiaDrawOperation(new Rect(0, 0, Bounds.Width, Bounds.Height), _currentPicture));

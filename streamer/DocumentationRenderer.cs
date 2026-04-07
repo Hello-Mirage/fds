@@ -30,7 +30,7 @@ public static class DocumentationRenderer
         }
     }
 
-    public static void Render(SKCanvas canvas, float width, float height, float scrollOffset)
+    public static float Render(SKCanvas canvas, float width, float height, float scrollOffset)
     {
         float time = (float)DateTime.Now.TimeOfDay.TotalSeconds;
         canvas.Clear(BackgroundColor);
@@ -160,6 +160,8 @@ public static class DocumentationRenderer
         // 7. Footer (FIXED)
         float footerHeight = height * 0.08f;
         DrawFooter(canvas, width, height, footerHeight, time);
+
+        return currentY; // Return total content height
     }
 
     private static void DrawAnimatedBackground(SKCanvas canvas, float width, float height, float time)

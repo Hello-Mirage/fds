@@ -248,3 +248,4 @@ d:\fds\fds-client\obj\Debug\net10.0\FdsClient.pdb
 d:\fds\fds-client\obj\Debug\net10.0\FdsClient.csproj.Up2Date
 d:\fds\fds-client\obj\Debug\net10.0\FdsClient.genruntimeconfig.cache
 d:\fds\fds-client\obj\Debug\net10.0\ref\FdsClient.dll
+d:\fds\fds-client\obj\Debug\net10.0\FdsClient.sourcelink.json

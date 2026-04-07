@@ -9,6 +9,7 @@ class Program
     private static float _lastRenderW = -1;
     private static float _lastRenderH = -1;
     private static float _scrollOffset = 0;
+    private static float _maxScroll = 1000;
 
     static async Task Main(string[] args)
     {
@@ -49,7 +50,12 @@ class Program
                     using var canvas = recorder.BeginRecording(SKRect.Create(0, 0, w, h));
                     
                     // Render the documentation site via pure C# Skia logic
-                    Streamer.DocumentationRenderer.Render(canvas, w, h, scroll);
+                    float totalHeight = Streamer.DocumentationRenderer.Render(canvas, w, h, scroll);
+                    
+                    lock (typeof(Program))
+                    {
+                        _maxScroll = Math.Max(0, totalHeight - h + 100);
+                    }
 
                     using var picture = recorder.EndRecording();
 
@@ -138,11 +144,12 @@ class Program
                 {
                     lock (typeof(Program))
                     {
-                        // Multiple by 20 to make scrolling feel more natural
+                        // Multiple by 30 to make scrolling feel more natural
                         _scrollOffset -= v1 * 30.0f;
                         if (_scrollOffset < 0) _scrollOffset = 0;
-                        if (_scrollOffset > 3000) _scrollOffset = 3000;
-                        Console.WriteLine($"Server: Scroll Delta {v1:F2}, New Offset {_scrollOffset:F0}");
+                        if (_scrollOffset > _maxScroll) _scrollOffset = _maxScroll;
+                        
+                        Console.WriteLine($"Server: Scroll Delta {v1:F2}, New Offset {_scrollOffset:F0}, Max {_maxScroll:F0}");
                     }
                 }
                 else
