@@ -21,5 +21,6 @@
     <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="2.88.9" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="2.88.9" />
     <PackageReference Include="SkiaSharp.NativeAssets.macOS" Version="2.88.9" />
+    <PackageReference Include="Wasmtime" Version="34.0.2" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,80 @@
+@page "/docs"
+
+<PageTitle>FDS Documentation</PageTitle>
+
+<div class="p-4" style="max-width: 900px; margin: 0 auto; color: #e0e0e0; font-family: 'Consolas', 'Courier New', monospace;">
+    <h1 class="mb-4" style="color: #00ffff; border-bottom: 2px solid #00ffff; padding-bottom: 10px;">FDS Protocol Documentation</h1>
+    
+    <p class="mb-5" style="font-size: 1.1rem; line-height: 1.6;">
+        FDS (Fast Drawing Streamer) is a distributed architecture for remote user interfaces. 
+        Instead of streaming heavy video frames, FDS streams __UI logic modules__ and executes them locally 
+        on the client using a native Skia engine.
+    </p>
+
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="p-3 border border-secondary bg-dark shadow">
+                <h3 style="color: #00ffff;">[ What is FDS? ]</h3>
+                <p>
+                    A browser-less, Chromium-free platform that moves the UI rendering __to the edge__. 
+                    This eliminates browser overhead and network-induced jitter.
+                </p>
+                <a href="#overview" class="text-info">>> Read Overview</a>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="p-3 border border-secondary bg-dark shadow">
+                <h3 style="color: #4caf50;">[ App Development ]</h3>
+                <p>
+                    Learn how to build Skia-native logic modules using C# and SkiaSharp. 
+                    Deploy platform-agnostic apps in 7KB - 2MB bundles.
+                </p>
+                <a href="#dev" class="text-success">>> Developer Guide</a>
+            </div>
+        </div>
+    </div>
+
+    <hr class="my-5 opacity-25" />
+
+    <section id="overview" class="mb-5">
+        <h2 style="color: #00ffff; border-bottom: 1px solid #333; padding-bottom: 5px;">The Architecture</h2>
+        <div class="p-3 border-start border-info bg-dark" style="background-color: #0a0a0a !important;">
+            <p>FDS uses a __V3 Logic Distribution Protocol__:</p>
+            <ul style="list-style-type: '>> ';">
+                <li>Streamer: Authoritative state provider and binary module distributor.</li>
+                <li>Client: High-fidelity logic host performing native Skia draws at 60FPS.</li>
+                <li>Streaming: 4KB chunked transmission with real-time compilation feedback.</li>
+            </ul>
+        </div>
+    </section>
+
+    <section id="dev" class="mb-5">
+        <h2 style="color: #4caf50; border-bottom: 1px solid #333; padding-bottom: 5px;">Making Apps</h2>
+        <p>Creating an FDS app involves defining a Skia drawing loop in a class library.</p>
+        <pre class="p-3 bg-black border border-success text-success" style="background-color: #000 !important; overflow-x: auto;">
+<code>public static class DocumentationRenderer
+{
+    public static void Render(SKCanvas canvas, float w, float h, float scroll)
+    {
+        canvas.Clear(SKColors.Black);
+        // Your UI logic here
+        canvas.DrawText("Hello FDS!", 20, 40, paint);
+    }
+}</code></pre>
+    </section>
+
+    <div class="p-3 border border-info text-info mb-5">
+        <h4>[ Zero Network Jitter ]</h4>
+        <p class="mb-0">
+            Because the __Render__ logic resides on the client, resizing the window or scrolling 
+            has __0ms latency__, even on high-latency connections.
+        </p>
+    </div>
+</div>
+
+<style>
+    body { background-color: #050505 !important; }
+    .text-cyan { color: #00ffff !important; }
+    a { text-decoration: none; cursor: pointer; }
+    a:hover { text-decoration: underline; }
+</style>

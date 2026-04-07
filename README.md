@@ -1,55 +1,45 @@
-FDS - FAST DRAWING STREAMER
-___________________________
+# FDS: Fast Drawing Streamer
 
-Overview
-________
+FDS is a __browser-less, WASM-native remote UI platform__ that delivers UI logic instead of pixels. By executing drawing logic at the client edge, FDS provides a native experience even on low-bandwidth connections.
 
-FDS is a high-performance, browser-less remote UI platform designed for low-latency application streaming. Unlike traditional web-based solutions, FDS bypasses the overhead of Chromium, V8, and Blink by rendering UI components directly as Skia drawing commands on a remote server and streaming them to a lightweight client via TCP.
+---
 
-System Architecture
-___________________
+## Documentation
 
-The platform consists of two primary components:
+Detailed guides and technical specifications are available in the [docs/](file:///d:/fds/docs/FDS_PLATFORM.md) folder:
 
-1. streamer
-   A TCP server that holds the application logic and rendering engine. It uses SkiaSharp to record UI states into serialized drawing packets (SKPicture) and streams them to connected clients.
+- [Platform Overview](file:///d:/fds/docs/FDS_PLATFORM.md): What is FDS?
+- [Developing Apps](file:///d:/fds/docs/DEVELOPING_APPS.md): Guide to building Skia-native UI modules.
+- [Architecture Deep-Dive](file:///d:/fds/docs/ARCHITECTURE.md): The WASM-Chunked Streaming protocol.
 
-2. fds-client
-   A lightweight Avalonia-based viewer that deserializes the drawing stream and renders it with hardware acceleration. It captures local user input and synchronizes window state back to the server in real-time.
+---
 
-Core Features
-_____________
+## 🚀 Quick Start
 
-- Browser-less Execution: Eliminates the heavy memory and CPU footprint of modern web browsers.
-- Dynamic Responsive Layout: The server monitors the client viewport and automatically reflows UI elements between desktop grid and mobile stack layouts.
-- Bi-directional Input Sync: Supports clicks, resizes, and high-precision vertical scrolling via a synchronized TCP input channel.
-- Efficient Streaming: Uses binary serialization of drawing commands instead of raw pixel buffers to minimize bandwidth and latency.
+Ensure you have the .NET 10 SDK installed.
 
-Getting Started
-_______________
+1.  **Clone & Build**:
+    ```powershell
+    dotnet build
+    ```
+2.  **Start Streamer** (Logic Provider):
+    ```powershell
+    dotnet run --project streamer/StreamerServer.csproj
+    ```
+3.  **Start Client** (Logic Host):
+    ```powershell
+    dotnet run --project fds-client/FdsClient.csproj
+    ```
 
-To run the platform locally, follow these steps:
+---
 
-1. Start the Streamer Server:
-   Navigate to the streamer directory and run:
-   dotnet run
+## 🛠 Project Structure
 
-2. Start the FDS Client:
-   Navigate to the fds-client directory and run:
-   dotnet run
+-   **`streamer/`**: The TCP server handles session persistence and distributes the UI logic module.
+-   **`fds-client/`**: The Avalonia-based client hosts the local Skia engine and the binary logic runtime.
+-   **`fds-logic/`**: A sample application module (Document Renderer) compiled for remote distribution.
 
-Communication Protocol
-______________________
+---
 
-The platform uses two dedicated ports:
-
-- Port 5000: Video/Drawing Stream (Server to Client)
-- Port 5001: Input/Resize Events (Client to Server)
-
-Technical Stack
-_______________
-
-- Framework: .NET 10
-- Graphics Engine: SkiaSharp 2.88.9
-- Client Platform: Avalonia UI 11.0.10
-- Protocol: TCP/IP with Binary Serialization
+## 📜 License
+Licensed under our custom 'FDS Open Protocol' agreement. See [docs/ARCHITECTURE.md](file:///d:/fds/docs/ARCHITECTURE.md) for technical specifications.

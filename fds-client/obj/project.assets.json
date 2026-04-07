@@ -792,6 +792,45 @@
         "runtime": {
           "lib/net6.0/Tmds.DBus.Protocol.dll": {}
         }
+      },
+      "Wasmtime/34.0.2": {
+        "type": "package",
+        "compile": {
+          "lib/net9.0/Wasmtime.Dotnet.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net9.0/Wasmtime.Dotnet.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtimeTargets": {
+          "runtimes/linux-arm64/native/libwasmtime.so": {
+            "assetType": "native",
+            "rid": "linux-arm64"
+          },
+          "runtimes/linux-x64/native/libwasmtime.so": {
+            "assetType": "native",
+            "rid": "linux-x64"
+          },
+          "runtimes/osx-arm64/native/libwasmtime.dylib": {
+            "assetType": "native",
+            "rid": "osx-arm64"
+          },
+          "runtimes/osx-x64/native/libwasmtime.dylib": {
+            "assetType": "native",
+            "rid": "osx-x64"
+          },
+          "runtimes/win-arm64/native/wasmtime.dll": {
+            "assetType": "native",
+            "rid": "win-arm64"
+          },
+          "runtimes/win-x64/native/wasmtime.dll": {
+            "assetType": "native",
+            "rid": "win-x64"
+          }
+        }
       }
     }
   },
@@ -1971,6 +2010,32 @@
         "tmds.dbus.protocol.0.15.0.nupkg.sha512",
         "tmds.dbus.protocol.nuspec"
       ]
+    },
+    "Wasmtime/34.0.2": {
+      "sha512": "Oe+xuxyj8LgNxuEqotBhkEPbzuN8Ljfhc61fnSz+8c4p9vODQQmZpNmxmPFC7zmnh6BLDhvpQlmh1sE8xbxWmg==",
+      "type": "package",
+      "path": "wasmtime/34.0.2",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "README.md",
+        "lib/net8.0/Wasmtime.Dotnet.dll",
+        "lib/net8.0/Wasmtime.Dotnet.xml",
+        "lib/net9.0/Wasmtime.Dotnet.dll",
+        "lib/net9.0/Wasmtime.Dotnet.xml",
+        "lib/netstandard2.0/Wasmtime.Dotnet.dll",
+        "lib/netstandard2.0/Wasmtime.Dotnet.xml",
+        "lib/netstandard2.1/Wasmtime.Dotnet.dll",
+        "lib/netstandard2.1/Wasmtime.Dotnet.xml",
+        "runtimes/linux-arm64/native/libwasmtime.so",
+        "runtimes/linux-x64/native/libwasmtime.so",
+        "runtimes/osx-arm64/native/libwasmtime.dylib",
+        "runtimes/osx-x64/native/libwasmtime.dylib",
+        "runtimes/win-arm64/native/wasmtime.dll",
+        "runtimes/win-x64/native/wasmtime.dll",
+        "wasmtime.34.0.2.nupkg.sha512",
+        "wasmtime.nuspec"
+      ]
     }
   },
   "projectFileDependencyGroups": {
@@ -1983,7 +2048,8 @@
       "SkiaSharp >= 2.88.9",
       "SkiaSharp.NativeAssets.Linux >= 2.88.9",
       "SkiaSharp.NativeAssets.Win32 >= 2.88.9",
-      "SkiaSharp.NativeAssets.macOS >= 2.88.9"
+      "SkiaSharp.NativeAssets.macOS >= 2.88.9",
+      "Wasmtime >= 34.0.2"
     ]
   },
   "packageFolders": {
@@ -2065,6 +2131,10 @@
           "SkiaSharp.NativeAssets.macOS": {
             "target": "Package",
             "version": "[2.88.9, )"
+          },
+          "Wasmtime": {
+            "target": "Package",
+            "version": "[34.0.2, )"
           }
         },
         "imports": [

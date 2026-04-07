@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\fds\\fds-site\\fds-site.csproj": {}
+    "d:\\fds\\fds-site\\fds-site.csproj": {}
   },
   "projects": {
-    "D:\\fds\\fds-site\\fds-site.csproj": {
+    "d:\\fds\\fds-site\\fds-site.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\fds\\fds-site\\fds-site.csproj",
+        "projectUniqueName": "d:\\fds\\fds-site\\fds-site.csproj",
         "projectName": "fds-site",
-        "projectPath": "D:\\fds\\fds-site\\fds-site.csproj",
+        "projectPath": "d:\\fds\\fds-site\\fds-site.csproj",
         "packagesPath": "C:\\Users\\MOSTAFUR RAHAMAN\\.nuget\\packages\\",
-        "outputPath": "D:\\fds\\fds-site\\obj\\",
+        "outputPath": "d:\\fds\\fds-site\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\MOSTAFUR RAHAMAN\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -89,12 +89,6 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
-          "downloadDependencies": [
-            {
-              "name": "Microsoft.NETCore.App.Runtime.Mono.browser-wasm",
-              "version": "[10.0.5, 10.0.5]"
-            }
-          ],
           "frameworkReferences": {
             "Microsoft.NETCore.App": {
               "privateAssets": "all"

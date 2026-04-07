@@ -18,56 +18,41 @@ namespace FdsClient;
 
 public class SkiaRendererControl : Control
 {
-    private SKPicture? _currentPicture;
-    private readonly object _syncRoot = new();
     private CancellationTokenSource? _cts;
     private TcpClient? _inputClient;
     private NetworkStream? _inputStream;
     private readonly SemaphoreSlim _streamLock = new(1, 1);
-    private readonly System.Collections.Concurrent.ConcurrentQueue<SKPicture> _disposalQueue = new();
+    
     private float _lastSyncedW = -1;
     private float _lastSyncedH = -1;
+    private float _scrollOffset = 0;
+    private float _streamProgress = 0;
+
+    private System.Reflection.MethodInfo? _remoteRenderMethod;
 
     public SkiaRendererControl()
     {
         _cts = new CancellationTokenSource();
         Task.Run(() => ListenForDrawingCommands(_cts.Token));
         Task.Run(() => ConnectInputChannel(_cts.Token));
-        this.PointerPressed += OnPointerPressed;
         
-        // Use AddHandler to ensure we capture events reliably
+        this.PointerPressed += OnPointerPressed;
         this.AddHandler(InputElement.PointerWheelChangedEvent, (s, e) => OnPointerWheelChangedInternal(e), RoutingStrategies.Tunnel | RoutingStrategies.Bubble, true);
 
-        // Ensure we can receive wheel events
         this.Focusable = true;
         this.IsHitTestVisible = true;
         this.AttachedToVisualTree += (s, e) => this.Focus();
-
-        // Ensure size sync on any layout update
         this.LayoutUpdated += (s, e) => SyncSizeToServer();
-    }
-
-    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
-    {
-        base.OnPropertyChanged(change);
-        if (change.Property == BoundsProperty)
-        {
-            SyncSizeToServer();
-        }
     }
 
     private void SyncSizeToServer()
     {
         var stream = _inputStream;
-        if (stream == null) return;
-        
-        // Wait for valid bounds
-        if (Bounds.Width <= 0 || Bounds.Height <= 0) return;
+        if (stream == null || Bounds.Width <= 0 || Bounds.Height <= 0) return;
 
         float w = (float)Bounds.Width;
         float h = (float)Bounds.Height;
 
-        // Throttling: Only sync if size actually changed logically to avoid flooding
         if (Math.Abs(w - _lastSyncedW) < 0.5f && Math.Abs(h - _lastSyncedH) < 0.5f) return;
 
         _lastSyncedW = w;
@@ -78,107 +63,16 @@ public class SkiaRendererControl : Control
             await _streamLock.WaitAsync();
             try
             {
-                Console.WriteLine($"Client: Syncing size {w:F0}x{h:F0} to server...");
                 var buf = new byte[12];
                 BitConverter.GetBytes(1).CopyTo(buf, 0); // Type 1: Resize
                 BitConverter.GetBytes(w).CopyTo(buf, 4);
                 BitConverter.GetBytes(h).CopyTo(buf, 8);
                 await stream.WriteAsync(buf, 0, 12);
                 await stream.FlushAsync();
-                Console.WriteLine($"Client: Size {w:F0}x{h:F0} synced OK.");
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Client: Size sync failed: {ex.Message}");
-                // Reset sync state to retry later
-                _lastSyncedW = -1;
-            }
+            catch { _lastSyncedW = -1; }
             finally { _streamLock.Release(); }
         });
-    }
-
-    private async Task ConnectInputChannel(CancellationToken ct)
-    {
-        while (!ct.IsCancellationRequested)
-        {
-            try
-            {
-                _inputClient = new TcpClient();
-                await _inputClient.ConnectAsync("127.0.0.1", 5001, ct);
-                _inputStream = _inputClient.GetStream();
-                
-                // Force sync on connect
-                _lastSyncedW = -1;
-                Dispatcher.UIThread.Post(() => SyncSizeToServer());
-
-                // Keep alive until cancelled
-                await Task.Delay(Timeout.Infinite, ct);
-            }
-            catch
-            {
-                _inputStream = null;
-                await Task.Delay(1000, ct);
-            }
-        }
-    }
-
-    private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        var pos = e.GetPosition(this);
-        if (Bounds.Width <= 0 || Bounds.Height <= 0) return;
-
-        // Normalize to 0-1 range
-        float nx = (float)(pos.X / Bounds.Width);
-        float ny = (float)(pos.Y / Bounds.Height);
-
-        var stream = _inputStream;
-        if (stream == null) return;
-
-        Task.Run(async () =>
-        {
-            await _streamLock.WaitAsync();
-            try
-            {
-                var buf = new byte[12];
-                BitConverter.GetBytes(0).CopyTo(buf, 0); // Type 0: Click
-                BitConverter.GetBytes(nx).CopyTo(buf, 4);
-                BitConverter.GetBytes(ny).CopyTo(buf, 8);
-                await stream.WriteAsync(buf, 0, 12);
-                await stream.FlushAsync();
-            }
-            catch { /* ignore */ }
-            finally { _streamLock.Release(); }
-        });
-    }
-
-    private void OnPointerWheelChangedInternal(PointerWheelEventArgs e)
-    {
-        float dy = (float)e.Delta.Y;
-        Console.WriteLine($"Client: Scroll Delta captured: {dy}");
-        var stream = _inputStream;
-        if (stream == null) return;
-
-        Task.Run(async () =>
-        {
-            await _streamLock.WaitAsync();
-            try
-            {
-                var buf = new byte[12];
-                BitConverter.GetBytes(2).CopyTo(buf, 0); // Type 2: Scroll
-                BitConverter.GetBytes(dy).CopyTo(buf, 4);
-                BitConverter.GetBytes(0f).CopyTo(buf, 8); // Unused V2
-                await stream.WriteAsync(buf, 0, 12);
-                await stream.FlushAsync();
-            }
-            catch { /* ignore */ }
-            finally { _streamLock.Release(); }
-        });
-    }
-
-    protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
-    {
-        base.OnPointerWheelChanged(e);
-        // This is now handled by the AddHandler for extra robustness
     }
 
     private async Task ListenForDrawingCommands(CancellationToken ct)
@@ -192,132 +86,174 @@ public class SkiaRendererControl : Control
                 using var stream = client.GetStream();
 
                 byte[] lengthBuffer = new byte[4];
+                int bytesRead = 0;
+                while (bytesRead < 4)
+                {
+                    int n = await stream.ReadAsync(lengthBuffer, bytesRead, 4 - bytesRead, ct);
+                    if (n == 0) throw new IOException("Stream closed");
+                    bytesRead += n;
+                }
+                int moduleLength = BitConverter.ToInt32(lengthBuffer, 0);
+
+                byte[] moduleData = new byte[moduleLength];
+                bytesRead = 0;
+                while (bytesRead < moduleLength)
+                {
+                    int toRead = Math.Min(4096, moduleLength - bytesRead);
+                    int n = await stream.ReadAsync(moduleData, bytesRead, toRead, ct);
+                    if (n == 0) throw new IOException("Stream closed");
+                    bytesRead += n;
+                    
+                    _streamProgress = (float)bytesRead / moduleLength;
+                    Dispatcher.UIThread.Post(() => InvalidateVisual()); 
+                }
+
+                var assembly = System.Reflection.Assembly.Load(moduleData);
+                var type = assembly.GetType("FdsLogic.DocumentationRenderer");
+                if (type != null)
+                {
+                    _remoteRenderMethod = type.GetMethod("Render");
+                    _streamProgress = 1.0f;
+                }
 
                 while (client.Connected && !ct.IsCancellationRequested)
                 {
-                    // 1. Read length
-                    int bytesRead = 0;
-                    while (bytesRead < 4)
-                    {
-                        int n = await stream.ReadAsync(lengthBuffer, bytesRead, 4 - bytesRead, ct);
-                        if (n == 0) throw new IOException("Stream closed");
-                        bytesRead += n;
-                    }
-
-                    int dataLength = BitConverter.ToInt32(lengthBuffer, 0);
-                    if (dataLength <= 0 || dataLength > 10 * 1024 * 1024) throw new IOException("Invalid data length");
-
-                    // 2. Read SKPicture data
-                    byte[] data = new byte[dataLength];
-                    bytesRead = 0;
-                    while (bytesRead < dataLength)
-                    {
-                        int n = await stream.ReadAsync(data, bytesRead, dataLength - bytesRead, ct);
-                        if (n == 0) throw new IOException("Stream closed");
-                        bytesRead += n;
-                    }
-
-                    // 3. Deserialize
-                    using var ms = new MemoryStream(data);
-                    var newPicture = SKPicture.Deserialize(ms);
-
-                    if (newPicture == null) continue;
-
-                    // 4. Update and Invalidate
-                    Dispatcher.UIThread.Post(() =>
-                    {
-                        lock (_syncRoot)
-                        {
-                            // Retire previous picture to disposal queue
-                            if (_currentPicture != null)
-                            {
-                                _disposalQueue.Enqueue(_currentPicture);
-                            }
-                            _currentPicture = newPicture;
-                        }
-                        
-                        // Age out old pictures
-                        while (_disposalQueue.Count > 20)
-                        {
-                            if (_disposalQueue.TryDequeue(out var old))
-                            {
-                                try { old.Dispose(); } catch { /* ignore */ }
-                            }
-                        }
-                        
-                        InvalidateVisual();
-                    });
+                    Dispatcher.UIThread.Post(() => InvalidateVisual());
+                    await Task.Delay(16, ct);
                 }
             }
-            catch (Exception)
-            {
-                // Wait before reconnecting
-                await Task.Delay(1000, ct);
-            }
+            catch { await Task.Delay(1000, ct); }
         }
     }
 
     public override void Render(DrawingContext context)
     {
-        // Ensure hit-testing works by drawing a transparent rect covering the entire bounds
-        context.DrawRectangle(Avalonia.Media.Brushes.Transparent, null, new Rect(0, 0, Bounds.Width, Bounds.Height));
-        
-        lock (_syncRoot)
+        context.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, Bounds.Width, Bounds.Height));
+
+        if (_streamProgress < 1.0f)
         {
-            context.Custom(new SkiaDrawOperation(new Rect(0, 0, Bounds.Width, Bounds.Height), _currentPicture));
+            context.Custom(new LoadingDrawOperation(new Rect(0, 0, Bounds.Width, Bounds.Height), _streamProgress));
+        }
+        else if (_remoteRenderMethod != null)
+        {
+            context.Custom(new SkiaDrawOperation(new Rect(0, 0, Bounds.Width, Bounds.Height), _remoteRenderMethod, _scrollOffset));
+        }
+    }
+
+    private class LoadingDrawOperation : ICustomDrawOperation
+    {
+        private readonly float _progress;
+        public LoadingDrawOperation(Rect bounds, float progress) { Bounds = bounds; _progress = progress; }
+        public Rect Bounds { get; }
+        public void Dispose() { }
+        public bool Equals(ICustomDrawOperation? other) => false;
+        public bool HitTest(Point p) => false;
+        public void Render(ImmediateDrawingContext context)
+        {
+            var leaseFeature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
+            if (leaseFeature == null) return;
+            using var lease = leaseFeature.Lease();
+            var canvas = lease.SkCanvas;
+
+            canvas.Clear(new SKColor(15, 15, 15));
+            using var paint = new SKPaint { Color = SKColors.Cyan, TextSize = 24, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Arial", SKFontStyle.Bold) };
+            float cx = (float)Bounds.Width / 2;
+            float cy = (float)Bounds.Height / 2;
+            canvas.DrawText("STREAMING UI LOGIC...", cx - 120, cy - 40, paint);
+            
+            float barW = (float)Bounds.Width * 0.6f;
+            var barRect = new SKRect(cx - barW/2, cy, cx + barW/2, cy + 20);
+            paint.Style = SKPaintStyle.Stroke;
+            paint.Color = new SKColor(255, 255, 255, 40);
+            canvas.DrawRoundRect(barRect, 10, 10, paint);
+            
+            paint.Style = SKPaintStyle.Fill;
+            paint.Color = SKColors.Cyan;
+            canvas.DrawRoundRect(new SKRect(barRect.Left, barRect.Top, barRect.Left + barW * _progress, barRect.Bottom), 10, 10, paint);
+
+            paint.TextSize = 14; paint.Color = SKColors.White;
+            canvas.DrawText($"{(_progress * 100):F1}% COMPLETE", cx - 40, cy + 50, paint);
         }
     }
 
     private class SkiaDrawOperation : ICustomDrawOperation
     {
-        private readonly SKPicture? _picture;
-
-        public SkiaDrawOperation(Rect bounds, SKPicture? picture)
-        {
-            Bounds = bounds;
-            _picture = picture;
-        }
-
+        private readonly System.Reflection.MethodInfo _method;
+        private readonly float _scroll;
+        public SkiaDrawOperation(Rect bounds, System.Reflection.MethodInfo method, float scroll) { Bounds = bounds; _method = method; _scroll = scroll; }
         public Rect Bounds { get; }
-
-        public void Dispose()
-        {
-        }
-
+        public void Dispose() { }
         public bool Equals(ICustomDrawOperation? other) => false;
         public bool HitTest(Point p) => false;
-
         public void Render(ImmediateDrawingContext context)
         {
-            var leaseFeature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
-            if (leaseFeature == null) return;
-
-            using var lease = leaseFeature.Lease();
-            var canvas = lease.SkCanvas;
-            canvas.Clear(SKColors.Transparent);
-
-            if (_picture != null)
+            var lease = context.TryGetFeature<ISkiaSharpApiLeaseFeature>()?.Lease();
+            if (lease == null) return;
+            using (lease)
             {
-                // We draw 1:1 because the server is now generating the picture at our exact size
-                canvas.DrawPicture(_picture);
-            }
-            else
-            {
-                using var paint = new SKPaint
-                {
-                    Color = SKColors.Gray,
-                    TextSize = 24,
-                    IsAntialias = true
-                };
-                canvas.DrawText("Waiting for StreamerServer...", 20, 40, paint);
+                _method.Invoke(null, new object[] { lease.SkCanvas, (float)Bounds.Width, (float)Bounds.Height, _scroll });
             }
         }
+    }
+
+    private async Task ConnectInputChannel(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                _inputClient = new TcpClient();
+                await _inputClient.ConnectAsync("127.0.0.1", 5001, ct);
+                _inputStream = _inputClient.GetStream();
+                _lastSyncedW = -1;
+                Dispatcher.UIThread.Post(() => SyncSizeToServer());
+                await Task.Delay(Timeout.Infinite, ct);
+            }
+            catch { _inputStream = null; await Task.Delay(1000, ct); }
+        }
+    }
+
+    private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        var pos = e.GetPosition(this);
+        if (Bounds.Width <= 0 || _inputStream == null) return;
+        float nx = (float)(pos.X / Bounds.Width);
+        float ny = (float)(pos.Y / Bounds.Height);
+        Task.Run(async () => {
+            await _streamLock.WaitAsync();
+            try {
+                var buf = new byte[12];
+                BitConverter.GetBytes(0).CopyTo(buf, 0); // Type 0: Click
+                BitConverter.GetBytes(nx).CopyTo(buf, 4);
+                BitConverter.GetBytes(ny).CopyTo(buf, 8);
+                await _inputStream.WriteAsync(buf, 0, 12);
+                await _inputStream.FlushAsync();
+            } catch {} finally { _streamLock.Release(); }
+        });
+    }
+
+    private void OnPointerWheelChangedInternal(PointerWheelEventArgs e)
+    {
+        float dy = (float)e.Delta.Y;
+        _scrollOffset -= dy * 30.0f;
+        if (_scrollOffset < 0) _scrollOffset = 0;
+        if (_inputStream == null) return;
+        Task.Run(async () => {
+            await _streamLock.WaitAsync();
+            try {
+                var buf = new byte[12];
+                BitConverter.GetBytes(2).CopyTo(buf, 0); // Type 2: Scroll
+                BitConverter.GetBytes(dy).CopyTo(buf, 4);
+                BitConverter.GetBytes(0f).CopyTo(buf, 8);
+                await _inputStream.WriteAsync(buf, 0, 12);
+                await _inputStream.FlushAsync();
+            } catch {} finally { _streamLock.Release(); }
+        });
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         _cts?.Cancel();
-        _currentPicture?.Dispose();
         _inputStream?.Dispose();
         _inputClient?.Dispose();
         base.OnDetachedFromVisualTree(e);

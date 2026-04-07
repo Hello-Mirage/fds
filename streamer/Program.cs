@@ -1,25 +1,28 @@
+using System;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using SkiaSharp;
+using System.Threading.Tasks;
 
 class Program
 {
     private static float _currentW = 800;
     private static float _currentH = 480;
-    private static float _lastRenderW = -1;
-    private static float _lastRenderH = -1;
     private static float _scrollOffset = 0;
     private static float _maxScroll = 1000;
 
-    static async Task Main(string[] args)
+    public static async Task Main(string[] args)
     {
+        Console.WriteLine("=== FDS STREAMER V3 (WASM NATIVE MODE) ===");
+        
         // Start input listener (port 5001) in background
         _ = Task.Run(() => ListenForInputEvents());
 
-        // Drawing stream (port 5000)
+        // Module/Drawing stream (port 5000)
         var listener = new TcpListener(IPAddress.Any, 5000);
         listener.Start();
         Console.WriteLine("StreamerServer: Listening on port 5000...");
+        Console.WriteLine("StreamerServer: Input listener on port 5001...");
 
         while (true)
         {
@@ -29,138 +32,90 @@ class Program
                 Console.WriteLine("StreamerServer: Client connected.");
                 using var stream = client.GetStream();
 
+                // 1. Load the Binary Module (Native WASM-equivalent)
+                var dllPath = @"d:\fds\fds-logic\bin\Release\net10.0\fds-logic.dll";
+                if (!File.Exists(dllPath)) {
+                    Console.WriteLine($"Streamer: Error - Logic module binary not found at {dllPath}");
+                    continue;
+                }
+                var moduleData = File.ReadAllBytes(dllPath);
+
+                // 2. Send Module via Chunked Streaming Protocol
+                Console.WriteLine($"Streamer: Streaming UI Logic Module ({moduleData.Length} bytes) in 4KB chunks...");
+                
+                // Header: [Total Length] (4 bytes)
+                await stream.WriteAsync(BitConverter.GetBytes(moduleData.Length), 0, 4);
+                
+                int chunkSize = 4096;
+                int offset = 0;
+                while (offset < moduleData.Length)
+                {
+                    int toSend = Math.Min(chunkSize, moduleData.Length - offset);
+                    await stream.WriteAsync(moduleData, offset, toSend);
+                    offset += toSend;
+                    
+                    // Small delay to make the streaming/compilation progress visible
+                    await Task.Delay(1); 
+                }
+                await stream.FlushAsync();
+
+                Console.WriteLine("Streamer: Module stream complete. Transitioning to state-only mode.");
+
                 while (client.Connected)
                 {
-                    float w, h, scroll;
-                    lock (typeof(Program)) 
-                    { 
-                        w = _currentW; 
-                        h = _currentH; 
-                        scroll = _scrollOffset;
-                    }
-
-                    // Log only when size changes to avoid log spam
-                    if (Math.Abs(w - _lastRenderW) > 1 || Math.Abs(h - _lastRenderH) > 1) {
-                        Console.WriteLine($"Streamer: Rendering at {w:F0}x{h:F0}");
-                        _lastRenderW = w; _lastRenderH = h;
-                    }
-
-                    // 1. Record the drawing at current dynamic size
-                    using var recorder = new SKPictureRecorder();
-                    using var canvas = recorder.BeginRecording(SKRect.Create(0, 0, w, h));
-                    
-                    // Render the documentation site via pure C# Skia logic
-                    float totalHeight = Streamer.DocumentationRenderer.Render(canvas, w, h, scroll);
-                    
-                    lock (typeof(Program))
-                    {
-                        _maxScroll = Math.Max(0, totalHeight - h + 100);
-                    }
-
-                    using var picture = recorder.EndRecording();
-
-                    // 2. Serialize
-                    using var ms = new MemoryStream();
-                    picture.Serialize(ms);
-                    var data = ms.ToArray();
-
-                    // 3. Send: [Length prefix] + [Data]
-                    var lengthPrefix = BitConverter.GetBytes(data.Length);
-                    await stream.WriteAsync(lengthPrefix, 0, 4);
-                    await stream.WriteAsync(data, 0, data.Length);
-                    await stream.FlushAsync();
-
-                    // 4. Stream delay (~60 FPS)
-                    await Task.Delay(16);
+                    // State synchronization can happen here if needed.
+                    await Task.Delay(100); 
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"StreamerServer: Client disconnected ({ex.Message})");
+                Console.WriteLine($"Streamer: Client error: {ex.Message}");
             }
         }
     }
 
-    static async Task ListenForInputEvents()
+    private static async Task ListenForInputEvents()
     {
-        var inputListener = new TcpListener(IPAddress.Any, 5001);
-        inputListener.Start();
-        Console.WriteLine("StreamerServer: Input listener on port 5001...");
-
+        var listener = new TcpListener(IPAddress.Any, 5001);
+        listener.Start();
         while (true)
         {
-            var client = await inputListener.AcceptTcpClientAsync();
-            Console.WriteLine("StreamerServer: Input client connected.");
-            _ = Task.Run(() => HandleInputClient(client));
-        }
-    }
-
-    static async Task HandleInputClient(TcpClient client)
-    {
-        using var _ = client;
-        using var stream = client.GetStream();
-        var buf = new byte[12]; // Type(4) + V1(4) + V2(4)
-
-        try
-        {
-            while (client.Connected)
+            try
             {
-                int read = 0;
-                while (read < 12)
-                {
-                    int n = await stream.ReadAsync(buf, read, 12 - read);
-                    if (n == 0) return;
-                    read += n;
-                }
+                using var client = await listener.AcceptTcpClientAsync();
+                Console.WriteLine("StreamerServer: Input client connected.");
+                using var stream = client.GetStream();
+                var reader = new BinaryReader(stream);
 
-                int type = BitConverter.ToInt32(buf, 0);
-                float v1 = BitConverter.ToSingle(buf, 4);
-                float v2 = BitConverter.ToSingle(buf, 8);
+                while (client.Connected)
+                {
+                    int type = reader.ReadInt32(); // 0: Click, 1: Resize, 2: Scroll
+                    float v1 = reader.ReadSingle();
+                    float v2 = reader.ReadSingle();
 
-                if (type == 0) // Click event
-                {
-                    float w, h, scroll;
-                    lock (typeof(Program)) 
-                    { 
-                        w = _currentW; 
-                        h = _currentH; 
-                        scroll = _scrollOffset; 
-                    }
-                    float cx = v1 * w;
-                    float cy = v2 * h;
-                    Console.WriteLine($"Input: click at ({cx:F0}, {cy:F0}) with scroll {scroll}");
-                    Streamer.DocumentationRenderer.HandleClick(cx, cy, scroll);
-                }
-                else if (type == 1) // Resize event
-                {
-                    lock (typeof(Program))
+                    if (type == 0) // Click (Normalized)
                     {
-                        _currentW = v1;
-                        _currentH = v2;
+                        // Logic moved to local module, but server can still track global state
+                        Console.WriteLine($"Click: {v1:F2}, {v2:F2}");
                     }
-                    Console.WriteLine($"Resize: new resolution {v1:F0}x{v2:F0}");
-                }
-                else if (type == 2) // Scroll event
-                {
-                    lock (typeof(Program))
+                    else if (type == 1) // Resize
                     {
-                        // Multiple by 30 to make scrolling feel more natural
-                        _scrollOffset -= v1 * 30.0f;
-                        if (_scrollOffset < 0) _scrollOffset = 0;
-                        if (_scrollOffset > _maxScroll) _scrollOffset = _maxScroll;
-                        
-                        Console.WriteLine($"Server: Scroll Delta {v1:F2}, New Offset {_scrollOffset:F0}, Max {_maxScroll:F0}");
+                        lock (typeof(Program)) { _currentW = v1; _currentH = v2; }
                     }
-                }
-                else
-                {
-                    Console.WriteLine($"Unknown packet type received: {type}");
+                    else if (type == 2) // Scroll
+                    {
+                        float delta = v1;
+                        lock (typeof(Program))
+                        {
+                            _scrollOffset -= delta * 30.0f;
+                            if (_scrollOffset < 0) _scrollOffset = 0;
+                            if (_scrollOffset > _maxScroll) _scrollOffset = _maxScroll;
+                            Console.WriteLine($"Server: Scroll Delta {delta:F2}, New Offset {(int)_scrollOffset}");
+                        }
+                    }
                 }
             }
-        }
-        catch
-        {
-            Console.WriteLine("StreamerServer: Input client disconnected.");
+            catch { /* restart listener */ }
         }
     }
 }

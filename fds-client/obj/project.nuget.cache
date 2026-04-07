@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "Gu1/Lq+FzHA=",
+  "dgSpecHash": "6TbAPlHlpAo=",
   "success": true,
   "projectFilePath": "d:\\fds\\fds-client\\FdsClient.csproj",
   "expectedPackageFiles": [
@@ -37,7 +37,8 @@
     "C:\\Users\\MOSTAFUR RAHAMAN\\.nuget\\packages\\skiasharp.nativeassets.webassembly\\2.88.7\\skiasharp.nativeassets.webassembly.2.88.7.nupkg.sha512",
     "C:\\Users\\MOSTAFUR RAHAMAN\\.nuget\\packages\\skiasharp.nativeassets.win32\\2.88.9\\skiasharp.nativeassets.win32.2.88.9.nupkg.sha512",
     "C:\\Users\\MOSTAFUR RAHAMAN\\.nuget\\packages\\system.componentmodel.annotations\\4.5.0\\system.componentmodel.annotations.4.5.0.nupkg.sha512",
-    "C:\\Users\\MOSTAFUR RAHAMAN\\.nuget\\packages\\tmds.dbus.protocol\\0.15.0\\tmds.dbus.protocol.0.15.0.nupkg.sha512"
+    "C:\\Users\\MOSTAFUR RAHAMAN\\.nuget\\packages\\tmds.dbus.protocol\\0.15.0\\tmds.dbus.protocol.0.15.0.nupkg.sha512",
+    "C:\\Users\\MOSTAFUR RAHAMAN\\.nuget\\packages\\wasmtime\\34.0.2\\wasmtime.34.0.2.nupkg.sha512"
   ],
   "logs": []
 }

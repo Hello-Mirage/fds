@@ -1,0 +1,21 @@
+## .NET Core
+bin/
+obj/
+*.user
+*.userosscache
+*.sln.doccache
+*.suo
+
+## VS Code
+.vscode/
+
+## Artifacts & Temp
+/tmp/
+asset.bin
+
+## Wasmtime Assets
+*.wasm
+
+## OS Specific
+.DS_Store
+Thumbs.db

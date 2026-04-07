@@ -80,6 +80,10 @@
             "SkiaSharp.NativeAssets.macOS": {
               "target": "Package",
               "version": "[2.88.9, )"
+            },
+            "Wasmtime": {
+              "target": "Package",
+              "version": "[34.0.2, )"
             }
           },
           "imports": [
