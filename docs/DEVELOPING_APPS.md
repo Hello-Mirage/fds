@@ -1,60 +1,64 @@
-# Developing Apps for FDS
+Developing Apps for FDS
+___________________________
 
-FDS applications are written in __Skia-Native logic__ and compiled into portable binary modules. The host (FdsClient) executes this logic locally, providing 0ms interaction latency.
+FDS applications are written in Skia-Native logic and compiled into portable binary modules. The host (FdsClient) executes this logic locally, providing 0ms interaction latency.
 
-## 1. Setup the Logic Module
 
-Your application logic must be a separate project (like `fds-logic`). 
+1. Setup the Logic Module
+___________________________
 
-### Create Project
-```powershell
-dotnet new classlib -n MyFdsApp
-cd MyFdsApp
-dotnet add package SkiaSharp --version 2.88.9
-```
+Your application logic must be a separate project (like fds-logic).
 
-### Protocol Signature
+Create Project:
+
+  dotnet new classlib -n MyFdsApp
+  cd MyFdsApp
+  dotnet add package SkiaSharp --version 2.88.9
+
+
+Protocol Signature
+___________________________
+
 Your module must export a static __Render__ method in the __FdsLogic__ namespace:
 
-```
-namespace FdsLogic;
+  namespace FdsLogic;
 
-public static class DocumentationRenderer
-{
-    public static void Render(SKCanvas canvas, float width, float height, float scrollOffset)
-    {
-        // 1. Clear the canvas
-        canvas.Clear(SKColors.Black);
+  public static class DocumentationRenderer
+  {
+      public static void Render(SKCanvas canvas, float width, float height, float scrollOffset)
+      {
+          canvas.Clear(SKColors.Black);
 
-        // 2. Handle Responsive Layout
-        bool isMobile = width < 580;
+          bool isMobile = width < 580;
 
-        // 3. Draw using SkiaSharp API
-        using var paint = new SKPaint { Color = SKColors.Cyan, TextSize = 32 };
-        canvas.DrawText("Hello FDS!", 50, 100, paint);
-    }
-}
-```
+          using var paint = new SKPaint { Color = SKColors.Cyan, TextSize = 32 };
+          canvas.DrawText("Hello FDS!", 50, 100, paint);
+      }
+  }
 
-## 2. Compile for Distribution
+
+2. Compile for Distribution
+___________________________
 
 To prepare your app for the Streamer:
-```powershell
-dotnet build -c Release
-```
-This produces `MyFdsApp.dll` (your UI logic binary).
 
-## 3. Register with the Streamer
+  dotnet build -c Release
 
-In `Streamer/Program.cs`, point the module loader to your binary:
+This produces MyFdsApp.dll (your UI logic binary).
 
-```csharp
-var dllPath = @"path/to/MyFdsApp.dll";
-var moduleData = File.ReadAllBytes(dllPath);
-```
 
-## 4. Best Practices
+3. Register with the Streamer
+___________________________
 
-- __Responsive-First__: Always check __width__ and __height__ inside the __Render__ method to dynamically adjust layout.
-- __Stateless Rendering__: The __Render__ method should focus on drawing. Keep session state on the server.
-- __Embedded Assets__: Large images or fonts should be included as __EmbeddedResource__ in your logic project. FDS will stream them as part of the binary module.
+In Streamer/Program.cs, point the module loader to your binary:
+
+  var dllPath = @"path/to/MyFdsApp.dll";
+  var moduleData = File.ReadAllBytes(dllPath);
+
+
+4. Best Practices
+___________________________
+
+  - Responsive-First: Always check __width__ and __height__ inside the Render method to dynamically adjust layout.
+  - Stateless Rendering: The Render method should focus on drawing. Keep session state on the server.
+  - Embedded Assets: Large images or fonts should be included as EmbeddedResource in your logic project. FDS will stream them as part of the binary module.
