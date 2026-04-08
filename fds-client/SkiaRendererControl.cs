@@ -31,8 +31,8 @@ public class SkiaRendererControl : Control
     private float _maxScroll = 0;
     private float _streamProgress = 0;
 
-    private delegate float RenderFunc(SKCanvas canvas, float w, float h, float s);
-    private delegate void ClickFunc(float x, float y, float w, float h, float s);
+    internal delegate float RenderFunc(SKCanvas canvas, float w, float h, float s);
+    internal delegate void ClickFunc(float x, float y, float w, float h, float s);
     private RenderFunc? _fastRender;
     private ClickFunc? _fastClick;
 

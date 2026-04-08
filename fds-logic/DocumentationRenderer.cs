@@ -202,35 +202,66 @@ public static class DocumentationRenderer
     private static float RenderHomePage(SKCanvas canvas, LayoutContext ctx, float time, float y)
     {
         // Hero Decorations
-        float heroY = y;
-        DrawGlowOrb(canvas, ctx.Margin + ctx.ContentW * 0.7f, heroY + ctx.HeroH * 0.3f, ctx.ContentW * 0.4f, time, new SKColor(0, 100, 120, 20));
+        float heroStart = y;
+        DrawGlowOrb(canvas, ctx.Margin + ctx.ContentW * 0.7f, heroStart + ctx.HeroH * 0.3f, ctx.ContentW * 0.4f, time, new SKColor(0, 100, 120, 20));
         
-        DrawPulsingBadge(canvas, ctx.Left, heroY + ctx.BadgeY, "WASM-NATIVE RUNTIME", time);
-        DrawGradientText(canvas, "FDS", ctx.Left, heroY + ctx.BadgeY + 50, ctx.TitleSize, time);
+        DrawPulsingBadge(canvas, ctx.Left, heroStart + ctx.BadgeY, "V3.0.0 HYBRID STABLE", time);
+        DrawGradientText(canvas, "FAST DRAWING STREAMER", ctx.Left, heroStart + ctx.BadgeY + 50, ctx.TitleSize * 0.8f, time);
         
-        DrawWrappedText(canvas, "Stream UI logic, not pixels. Zero-latency rendering at the edge.", ctx.Left, heroY + ctx.TagY, ctx.ContentW, ctx.IsMobile ? 15 : 18, new SKColor(180, 180, 190));
+        float taglineFinalY = DrawWrappedText(canvas, "The next generation of remote UI transport. FDS layers reliable WASM-native logic with high-frequency UDP vector overlays for pixel-perfect performance at zero-latency.", ctx.Left, heroStart + ctx.TagY, ctx.ContentW, ctx.IsMobile ? 16 : 22, new SKColor(220, 220, 230));
 
-        // CTA Buttons
-        DrawButton(canvas, ctx.Left, heroY + ctx.BtnY, ctx.BtnW, ctx.BtnH, "GET STARTED", Cyan, time, true);
-        DrawButton(canvas, ctx.DocsX, heroY + ctx.DocsY, ctx.BtnW, ctx.BtnH, "VIEW DOCS", Purple, time, false);
+        // CTA Buttons (Dynamic Padding)
+        float ctaY = taglineFinalY + 40;
+        DrawButton(canvas, ctx.Left, ctaY, ctx.BtnW, ctx.BtnH, "GET STARTED", Cyan, time, true);
+        DrawButton(canvas, ctx.DocsX, ctaY, ctx.BtnW, ctx.BtnH, "ARCHITECTURE", Purple, time, false);
 
-        y += ctx.HeroH;
+        y = ctaY + 120; // Set next section start relative to CTAs
 
-        // Features Grid
-        y += 40;
-        DrawSectionTitle(canvas, "FEATURES", ctx.Left, y, ctx.ContentW + ctx.Left * 2, time);
-        y += 50;
+        // --- SECTION 1: CORE CAPABILITIES ---
+        DrawSectionTitle(canvas, "CORE CAPABILITIES", ctx.Left, y, ctx.ContentW, time);
+        y += 60;
+
+        float columnW = ctx.IsMobile ? ctx.ContentW : (ctx.ContentW - 32) / 3;
+        float columnH = 220;
         
-        float featureW = ctx.IsMobile ? ctx.ContentW : (ctx.ContentW - 16) / 2;
-        float fh = 120;
-        DrawFeatureCardFixed(canvas, ctx.Left, y, featureW, fh, "Zero Chromium", "No V8, no Blink, no WebView overhead. Pure native Skia.", Cyan);
-        DrawFeatureCardFixed(canvas, ctx.Left + featureW + 16, y, featureW, fh, "WASM-Native Logic", "UI logic compiled once, distributed anywhere.", Purple);
-        y += fh + 12;
-        DrawFeatureCardFixed(canvas, ctx.Left, y, featureW, fh, "Chunked Streaming", "64KB packet delivery with real-time compilation.", Green);
-        DrawFeatureCardFixed(canvas, ctx.Left + featureW + 16, y, featureW, fh, "Pixel-Perfect Skia", "Hardware-accelerated rendering with full anti-aliasing.", Orange);
-        y += fh;
+        RenderFeatureColumn(canvas, ctx.Left, y, columnW, columnH, "01", "WASM LOGIC", "Logic modules are streamed as binary chunks and executed at native edge speeds.", Cyan);
+        RenderFeatureColumn(canvas, ctx.Left + columnW + 16, y, columnW, columnH, "02", "UDP OVERLAYS", "Real-time vector streams provide buttery-smooth 60fps dynamic overlays.", Purple);
+        RenderFeatureColumn(canvas, ctx.Left + (columnW + 16) * 2, y, columnW, columnH, "03", "ZERO LATENCY", "Hit-testing occurs locally on the client host for immediate 0ms engagement.", Green);
+        
+        y += columnH + 80;
+
+        // --- SECTION 2: TECHNICAL DEPTH (LOREM IPSUM) ---
+        DrawSectionTitle(canvas, "TECHNICAL DEEP DIVE", ctx.Left, y, ctx.ContentW, time);
+        y += 60;
+
+        y = DrawWrappedText(canvas, "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.", ctx.Left, y, ctx.ContentW, 16, White);
+        y += 30;
+        y = DrawWrappedText(canvas, "Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem.", ctx.Left, y, ctx.ContentW, 16, Gray);
+        
+        y += 80;
 
         return y;
+    }
+
+    private static void RenderFeatureColumn(SKCanvas canvas, float x, float y, float w, float h, string num, string title, string desc, SKColor color)
+    {
+        var rect = new SKRect(x, y, x + w, y + h);
+        using var bg = new SKPaint { Color = CardBg, IsAntialias = true };
+        canvas.DrawRoundRect(rect, 12, 12, bg);
+        
+        using var border = new SKPaint { Color = BorderColor, Style = SKPaintStyle.Stroke, StrokeWidth = 1, IsAntialias = true };
+        canvas.DrawRoundRect(rect, 12, 12, border);
+
+        using var numP = new SKPaint { Color = color.WithAlpha(50), TextSize = 48, Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold), IsAntialias = true };
+        canvas.DrawText(num, x + 20, y + 60, numP);
+
+        using var titleP = new SKPaint { Color = White, TextSize = 18, Typeface = SKTypeface.FromFamilyName("Arial", SKFontStyle.Bold), IsAntialias = true };
+        canvas.DrawText(title, x + 20, y + 90, titleP);
+
+        using var bar = new SKPaint { Color = color, Style = SKPaintStyle.Fill };
+        canvas.DrawRect(new SKRect(x + 20, y + 100, x + 50, y + 104), bar);
+
+        DrawWrappedText(canvas, desc, x + 20, y + 130, w - 40, 14, Gray);
     }
 
     private static float RenderDocsPage(SKCanvas canvas, LayoutContext ctx, float time, float y)
@@ -468,12 +499,13 @@ public static class DocumentationRenderer
         using var p = new SKPaint { Color = color, TextSize = size, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas") };
         float lineH = size + 6;
         var words = text.Split(' '); string line = "";
+        float startY = y;
         foreach (var word in words) {
             string test = line == "" ? word : line + " " + word;
             if (p.MeasureText(test) > maxW) { c.DrawText(line, x, y + size, p); y += lineH; line = word; }
             else line = test;
-        }
-        c.DrawText(line, x, y + size, p); return y + lineH;
+        c.DrawText(line, x, y + size, p); 
+        return y + lineH; // Return absolute Y again to avoid breaking other calls
     }
 
     private static void DrawToast(SKCanvas c, float w, float h, string text, float alpha)

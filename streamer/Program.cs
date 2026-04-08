@@ -5,81 +5,91 @@ using System.Net.Sockets;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Collections.Concurrent;
 using SkiaSharp;
+
+class ClientSession
+{
+    public IPEndPoint? VectorEndpoint { get; set; }
+    public float W { get; set; } = 800;
+    public float H { get; set; } = 400;
+    public float Scroll { get; set; } = 0;
+    public float MaxScroll { get; set; } = 1000;
+    public long LastHash { get; set; } = 0;
+    public bool IsActive { get; set; } = true;
+}
 
 class Program
 {
-    private static float _currentW = 800;
-    private static float _currentH = 480;
-    private static float _scrollOffset = 0;
-    private static float _maxScroll = 1000;
-
-    // Hybrid State
+    // Hybrid Logic (Shared)
     private delegate float RenderFunc(SKCanvas canvas, float w, float h, float s);
     private delegate void ClickFunc(float x, float y, float w, float h, float s);
-    
     private static RenderFunc? _fastRender;
     private static ClickFunc? _fastClick;
-    private static long _lastFrameHash = 0;
 
+    private static readonly ConcurrentDictionary<string, ClientSession> _sessions = new();
     private static readonly UdpClient _udpSender = new UdpClient();
-    private static IPEndPoint _clientEndpoint = new IPEndPoint(IPAddress.Loopback, 5005);
 
     public static async Task Main(string[] args)
     {
-        Console.WriteLine("=== FDS HYBRID STREAMER V3 (VECTOR + WASM) ===");
+        Console.WriteLine("=== FDS MULTI-THREADED STREAMER V3.1 ===");
         
-        // 1. Initial Load of Logic Module (Server-Side Execution)
         LoadLogicModule();
 
-        // 2. Start UDP Vector Stream Loop (60 FPS)
-        _ = Task.Run(() => VectorStreamLoop());
-
-        // 3. Start input listener (port 5001) in background
+        // Input Listener (Shared port, routes via IP)
         _ = Task.Run(() => ListenForInputEvents());
 
-        // Module/WASM stream (port 5000)
         var listener = new TcpListener(IPAddress.Any, 5000);
         listener.Start();
         Console.WriteLine("StreamerServer: Logic (TCP) on port 5000...");
-        Console.WriteLine("StreamerServer: Input (TCP) on port 5001...");
-        Console.WriteLine("StreamerServer: Vector (UDP) on port 5005...");
+        Console.WriteLine("StreamerServer: Dynamic Session Routing Enabled.");
 
         while (true)
         {
             try
             {
-                using var client = await listener.AcceptTcpClientAsync();
-                Console.WriteLine("StreamerServer: Client connected.");
-                using var stream = client.GetStream();
+                var tcpClient = await listener.AcceptTcpClientAsync();
+                var clientInfo = tcpClient.Client.RemoteEndPoint?.ToString() ?? "unknown";
+                Console.WriteLine($"StreamerServer: New Client Connection [{clientInfo}]");
 
-                // 1. Send Module via Chunked Streaming Protocol
+                // Spawn session handler
+                _ = Task.Run(() => HandleClientSession(tcpClient));
+            }
+            catch (Exception ex) { Console.WriteLine($"Connection Error: {ex.Message}"); }
+        }
+    }
+
+    private static async Task HandleClientSession(TcpClient tcpClient)
+    {
+        string clientId = tcpClient.Client.RemoteEndPoint?.ToString()?.Split(':')[0] ?? "unknown";
+        var session = new ClientSession { 
+            VectorEndpoint = new IPEndPoint(((IPEndPoint)tcpClient.Client.RemoteEndPoint!).Address, 5005) 
+        };
+        _sessions[clientId] = session;
+
+        try {
+            using (tcpClient)
+            using (var stream = tcpClient.GetStream())
+            {
+                // 1. Stream WASM Module
                 var dllPath = @"d:\fds\fds-logic\bin\Release\net10.0\fds-logic.dll";
                 if (File.Exists(dllPath))
                 {
                     var moduleData = File.ReadAllBytes(dllPath);
-                    Console.WriteLine($"Streamer: Streaming WASM Logic Module ({moduleData.Length} bytes)...");
-                    
                     await stream.WriteAsync(BitConverter.GetBytes(moduleData.Length), 0, 4);
-                    int offset = 0;
-                    while (offset < moduleData.Length)
-                    {
-                        int toSend = Math.Min(65536, moduleData.Length - offset);
-                        await stream.WriteAsync(moduleData, offset, toSend);
-                        offset += toSend;
-                        await Task.Delay(1); 
-                    }
+                    await stream.WriteAsync(moduleData, 0, moduleData.Length);
                     await stream.FlushAsync();
-                    Console.WriteLine("Streamer: WASM module stream complete.");
                 }
 
-                while (client.Connected) { await Task.Delay(100); }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Streamer: Client error: {ex.Message}");
+                // 2. Start Dedicated Vector Thread for this session
+                _ = Task.Run(() => VectorStreamLoop(session));
+
+                // Maintain TCP connection
+                while (tcpClient.Connected && session.IsActive) { await Task.Delay(500); }
             }
         }
+        catch { }
+        finally { session.IsActive = false; _sessions.TryRemove(clientId, out _); }
     }
 
     private static void LoadLogicModule()
@@ -89,38 +99,27 @@ class Program
             if (!File.Exists(dllPath)) return;
             var assembly = Assembly.LoadFrom(dllPath);
             var type = assembly.GetType("FdsLogic.DocumentationRenderer");
-            var renderMethod = type?.GetMethod("Render");
-            var clickMethod = type?.GetMethod("HandleClick");
-
-            if (renderMethod != null) _fastRender = (RenderFunc)Delegate.CreateDelegate(typeof(RenderFunc), renderMethod);
-            if (clickMethod != null) _fastClick = (ClickFunc)Delegate.CreateDelegate(typeof(ClickFunc), clickMethod);
-            
-            // Set IsServer = true for the remote logic instance
-            var isServerProp = type?.GetProperty("IsServer");
-            isServerProp?.SetValue(null, true);
-
-            Console.WriteLine("Streamer: Logic module loaded for server-side execution.");
-        } catch (Exception e) {
-            Console.WriteLine($"Streamer: Module load error: {e.Message}");
-        }
+            _fastRender = (RenderFunc?)Delegate.CreateDelegate(typeof(RenderFunc), type!.GetMethod("Render")!);
+            _fastClick = (ClickFunc?)Delegate.CreateDelegate(typeof(ClickFunc), type!.GetMethod("HandleClick")!);
+            type.GetProperty("IsServer")?.SetValue(null, true);
+            Console.WriteLine("Streamer: Global Logic Engine initialized.");
+        } catch (Exception e) { Console.WriteLine("Module Load Fail: " + e.Message); }
     }
 
-    private static async Task VectorStreamLoop()
+    private static async Task VectorStreamLoop(ClientSession session)
     {
         var recorder = new SKPictureRecorder();
-        while (true)
+        while (session.IsActive)
         {
-            if (_fastRender != null)
+            if (_fastRender != null && session.VectorEndpoint != null)
             {
                 try {
                     float w, h, scroll;
-                    lock (typeof(Program)) { w = _currentW; h = _currentH; scroll = _scrollOffset; }
+                    lock (session) { w = session.W; h = session.H; scroll = session.Scroll; }
 
-                    // Record drawing commands
                     using (var canvas = recorder.BeginRecording(new SKRect(0, 0, w, h)))
                     {
-                        float maxS = _fastRender(canvas, w, h, scroll);
-                        _maxScroll = maxS;
+                        session.MaxScroll = _fastRender(canvas, w, h, scroll);
                     }
 
                     using var picture = recorder.EndRecording();
@@ -128,27 +127,19 @@ class Program
                     
                     if (data != null)
                     {
-                        // --- OPTIMIZATION: Content Hashing ---
                         long currentHash = GetFastHash(data);
-                        if (currentHash == _lastFrameHash) {
-                            await Task.Delay(16); // Skip this frame (no changes)
-                            continue;
-                        }
-                        _lastFrameHash = currentHash;
+                        if (currentHash == session.LastHash) { await Task.Delay(16); continue; }
+                        session.LastHash = currentHash;
 
                         byte[] bytes = data.ToArray();
-                        
-                        // --- V3 Vector Packetizer ---
                         int frameId = (int)(DateTime.Now.Ticks % 1000000);
-                        int chunkSize = 32768; // 32KB chunks for stable UDP delivery
+                        int chunkSize = 30000;
                         int totalChunks = (int)Math.Ceiling(bytes.Length / (double)chunkSize);
 
                         for (int i = 0; i < totalChunks; i++)
                         {
                             int offset = i * chunkSize;
                             int length = Math.Min(chunkSize, bytes.Length - offset);
-                            
-                            // Packet Header: [FrameId(4)] [Total(4)] [Index(4)] [Length(4)]
                             byte[] packet = new byte[16 + length];
                             BitConverter.GetBytes(frameId).CopyTo(packet, 0);
                             BitConverter.GetBytes(totalChunks).CopyTo(packet, 4);
@@ -156,15 +147,14 @@ class Program
                             BitConverter.GetBytes(length).CopyTo(packet, 12);
                             Buffer.BlockCopy(bytes, offset, packet, 16, length);
 
-                            await _udpSender.SendAsync(packet, packet.Length, _clientEndpoint);
-                            if (totalChunks > 1) await Task.Delay(1); // Prevent UDP buffer overflow
+                            await _udpSender.SendAsync(packet, packet.Length, session.VectorEndpoint);
+                            if (totalChunks > 1) await Task.Delay(1);
                         }
                     }
                 }
-                catch (Exception e) { Console.WriteLine("UDP Stream Error: " + e.Message); }
+                catch { }
             }
-
-            await Task.Delay(16); // ~60 FPS
+            await Task.Delay(16);
         }
     }
 
@@ -176,6 +166,8 @@ class Program
         {
             try {
                 using var client = await listener.AcceptTcpClientAsync();
+                string clientId = ((IPEndPoint)client.Client.RemoteEndPoint!).Address.ToString();
+                
                 var reader = new BinaryReader(client.GetStream());
                 while (client.Connected)
                 {
@@ -183,22 +175,16 @@ class Program
                     float v1 = reader.ReadSingle();
                     float v2 = reader.ReadSingle();
 
-                    if (type == 0) // Click
+                    if (_sessions.TryGetValue(clientId, out var session))
                     {
-                        float px, py, cw, ch, co;
-                        lock (typeof(Program)) { px = v1 * _currentW; py = v2 * _currentH; cw = _currentW; ch = _currentH; co = _scrollOffset; }
-                        _fastClick?.Invoke(px, py, cw, ch, co);
-                    }
-                    else if (type == 1) // Resize
-                    {
-                        lock (typeof(Program)) { _currentW = v1; _currentH = v2; }
-                    }
-                    else if (type == 2) // Scroll
-                    {
-                        lock (typeof(Program)) {
-                            _scrollOffset -= v1 * 30.0f;
-                            _scrollOffset = Math.Clamp(_scrollOffset, 0, _maxScroll);
+                        if (type == 0) // Click
+                        {
+                            float px, py, cw, ch, co;
+                            lock (session) { px = v1 * session.W; py = v2 * session.H; cw = session.W; ch = session.H; co = session.Scroll; }
+                            _fastClick?.Invoke(px, py, cw, ch, co);
                         }
+                        else if (type == 1) { lock (session) { session.W = v1; session.H = v2; } }
+                        else if (type == 2) { lock (session) { session.Scroll = Math.Clamp(session.Scroll - v1 * 30.0f, 0, session.MaxScroll); } }
                     }
                 }
             } catch { await Task.Delay(100); }
@@ -209,7 +195,8 @@ class Program
     {
         ReadOnlySpan<long> span = new ReadOnlySpan<long>(data.Data.ToPointer(), (int)data.Size / 8);
         long hash = 0;
-        for (int i = 0; i < Math.Min(span.Length, 1024); i++) hash ^= span[i]; // Fast XOR sample hash
+        int len = Math.Min(span.Length, 512);
+        for (int i = 0; i < len; i++) hash ^= span[i];
         return hash;
     }
 }
