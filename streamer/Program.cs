@@ -24,8 +24,12 @@ class Program
     // Hybrid Logic (Shared)
     private delegate float RenderFunc(SKCanvas canvas, float w, float h, float s);
     private delegate void ClickFunc(float x, float y, float w, float h, float s);
+    private delegate float[] GetPosFunc();
+    private delegate byte[] GetColFunc();
     private static RenderFunc? _fastRender;
     private static ClickFunc? _fastClick;
+    private static GetPosFunc? _getPos;
+    private static GetColFunc? _getCol;
 
     private static readonly ConcurrentDictionary<string, ClientSession> _sessions = new();
     private static readonly UdpClient _udpSender = new UdpClient();
@@ -101,6 +105,8 @@ class Program
             var type = assembly.GetType("FdsLogic.DocumentationRenderer");
             _fastRender = (RenderFunc?)Delegate.CreateDelegate(typeof(RenderFunc), type!.GetMethod("Render")!);
             _fastClick = (ClickFunc?)Delegate.CreateDelegate(typeof(ClickFunc), type!.GetMethod("HandleClick")!);
+            _getPos = (GetPosFunc?)Delegate.CreateDelegate(typeof(GetPosFunc), type!.GetMethod("GetParticlePositions")!);
+            _getCol = (GetColFunc?)Delegate.CreateDelegate(typeof(GetColFunc), type!.GetMethod("GetParticleColors")!);
             type.GetProperty("IsServer")?.SetValue(null, true);
             Console.WriteLine("Streamer: Global Logic Engine initialized.");
         } catch (Exception e) { Console.WriteLine("Module Load Fail: " + e.Message); }
@@ -123,8 +129,36 @@ class Program
                     }
 
                     using var picture = recorder.EndRecording();
-                    using var data = picture.Serialize();
                     
+                    // --- OPTIMIZATION (Delta Vector V3.2): Vertex Streaming for Arcade ---
+                    float[]? pos = _getPos?.Invoke();
+                    if (pos != null && pos.Length > 0 && session.VectorEndpoint != null)
+                    {
+                        byte[]? col = _getCol?.Invoke();
+                        int count = pos.Length / 2;
+                        byte[] deltaPacket = new byte[4 + count * 12];
+                        BitConverter.GetBytes(count).CopyTo(deltaPacket, 0);
+                        for (int i = 0; i < count; i++) {
+                            BitConverter.GetBytes(pos[i * 2]).CopyTo(deltaPacket, 4 + i * 12);
+                            BitConverter.GetBytes(pos[i * 2 + 1]).CopyTo(deltaPacket, 8 + i * 12);
+                            if (col != null) Buffer.BlockCopy(col, i * 4, deltaPacket, 12 + i * 12, 4);
+                        }
+
+                        // Type 3 Header (Simplified for delta)
+                        byte[] frameHeader = new byte[16];
+                        BitConverter.GetBytes(-3).CopyTo(frameHeader, 0); // FrameID -3 = VertexDelta
+                        BitConverter.GetBytes(1).CopyTo(frameHeader, 4);
+                        BitConverter.GetBytes(0).CopyTo(frameHeader, 8);
+                        BitConverter.GetBytes(deltaPacket.Length).CopyTo(frameHeader, 12);
+
+                        byte[] fullPacket = new byte[16 + deltaPacket.Length];
+                        Buffer.BlockCopy(frameHeader, 0, fullPacket, 0, 16);
+                        Buffer.BlockCopy(deltaPacket, 0, fullPacket, 16, deltaPacket.Length);
+
+                        await _udpSender.SendAsync(fullPacket, fullPacket.Length, session.VectorEndpoint);
+                    }
+
+                    using var data = picture.Serialize();
                     if (data != null)
                     {
                         // --- OPTIMIZATION (RESTORED): Content Hashing ---

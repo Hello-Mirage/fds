@@ -1,5 +1,7 @@
 using SkiaSharp;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace FdsLogic;
 
@@ -23,6 +25,11 @@ public static class DocumentationRenderer
     private static float _pulse = 0;
     private static readonly System.Collections.Generic.List<Particle> _particles = new();
     private static DateTime _lastPhysicsUpdate = DateTime.Now;
+
+    // --- GPU Resident Vertex Buffers ---
+    private static readonly SKPoint[] _vPoints = new SKPoint[512];
+    private static readonly SKColor[] _vColors = new SKColor[512];
+    private static int _residentCount = 0;
 
     private class Particle {
         public float X, Y, VX, VY, Radius;
@@ -561,44 +568,103 @@ public static class DocumentationRenderer
 
     private static float RenderArcadePage(SKCanvas c, float w, float h, float time)
     {
-        // Physics update
-        var now = DateTime.Now;
-        float dt = (float)(now - _lastPhysicsUpdate).TotalSeconds;
-        _lastPhysicsUpdate = now;
-        if (dt > 0.1f) dt = 0.016f; // Clamping for first frame
-
-        foreach (var p in _particles)
+        // 1. Logic Execution (Server-side physics)
+        if (IsServer)
         {
-            p.VY += 25.0f * dt; // Gravity
-            p.X += p.VX;
-            p.Y += p.VY;
-            if (p.X < 0 || p.X > w) p.VX *= -0.8f;
-            if (p.Y > h - 100) { p.Y = h - 100; p.VY *= -0.6f; }
-            p.Life -= dt * 0.4f;
-        }
-        _particles.RemoveAll(p => p.Life <= 0);
+            var now = DateTime.Now;
+            float dt = (float)(now - _lastPhysicsUpdate).TotalSeconds;
+            _lastPhysicsUpdate = now;
+            if (dt > 0.1f) dt = 0.016f;
 
-        // Rendering
+            foreach (var p in _particles)
+            {
+                p.VY += 25.0f * dt;
+                p.X += p.VX; p.Y += p.VY;
+                if (p.X < 0 || p.X > w) p.VX *= -0.8f;
+                if (p.Y > h - 100) { p.Y = h - 100; p.VY *= -0.6f; }
+                p.Life -= dt * 0.4f;
+            }
+            _particles.RemoveAll(p => p.Life <= 0);
+        }
+
+        // 2. High-Performance Render (Using GPU Resident Buffers if available)
         using var titleP = new SKPaint { Color = Orange, TextSize = 40, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold) };
         c.DrawText("FDS ARCADE", 40, 140, titleP);
         using var subP = new SKPaint { Color = Gray, TextSize = 14, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas") };
-        c.DrawText("High-Frequency Physics Simulation (125 FPS Vector Stream)", 40, 165, subP);
-        c.DrawText("Click anywhere to spawn neon debris.", 40, 185, subP);
+        c.DrawText("GPU Resident Vertex Buffers (Delta Vector V3.2)", 40, 165, subP);
+        c.DrawLine(0, h - 100, w, h - 100, new SKPaint { Color = BorderColor, StrokeWidth = 2 });
 
-        using var glow = new SKPaint { IsAntialias = true, MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, 4) };
-        using var fill = new SKPaint { IsAntialias = true };
-
-        foreach (var p in _particles)
+        if (_residentCount > 0)
         {
-            glow.Color = p.Color.WithAlpha((byte)(100 * p.Life));
-            c.DrawCircle(p.X, p.Y, p.Radius + 2, glow);
-            fill.Color = p.Color.WithAlpha((byte)(255 * p.Life));
-            c.DrawCircle(p.X, p.Y, p.Radius, fill);
+            // Create temporary subsets for Skia
+            var pts = new SKPoint[_residentCount];
+            var cols = new SKColor[_residentCount];
+            Array.Copy(_vPoints, pts, _residentCount);
+            Array.Copy(_vColors, cols, _residentCount);
+
+            using var vertices = SKVertices.CreateCopy(SKVertexMode.Points, pts, null, cols);
+            using var fill = new SKPaint { StrokeWidth = 8, StrokeCap = SKStrokeCap.Round, IsAntialias = true };
+            c.DrawVertices(vertices, SKBlendMode.SrcOver, fill);
+        }
+        else if (IsServer) // fallback for original renderer
+        {
+            using var fill = new SKPaint { IsAntialias = true, StrokeWidth = 4, StrokeCap = SKStrokeCap.Round };
+            foreach (var p in _particles)
+            {
+                fill.Color = p.Color.WithAlpha((byte)(255 * p.Life));
+                c.DrawPoint(p.X, p.Y, fill);
+            }
         }
 
-        // Floor
-        using var fp = new SKPaint { Color = BorderColor, StrokeWidth = 2 };
         return h;
+    }
+
+    // --- WASM Delta Patcher Entry Point ---
+    public static void ApplyVertexUpdates(byte[] delta)
+    {
+        if (delta.Length < 4) return;
+        int count = BitConverter.ToInt32(delta, 0);
+        _residentCount = count;
+        
+        int offset = 4;
+        for (int i = 0; i < count; i++)
+        {
+            if (offset + 12 > delta.Length) break;
+            int idx = i; // simple index-based update for now
+            float x = BitConverter.ToSingle(delta, offset);
+            float y = BitConverter.ToSingle(delta, offset + 4);
+            _vPoints[idx] = new SKPoint(x, y);
+            
+            byte r = delta[offset + 8];
+            byte g = delta[offset + 9];
+            byte b = delta[offset + 10];
+            byte a = delta[offset + 11];
+            _vColors[idx] = new SKColor(r, g, b, a);
+            
+            offset += 12;
+        }
+    }
+
+    public static float[] GetParticlePositions()
+    {
+        var pos = new float[_particles.Count * 2];
+        for (int i = 0; i < _particles.Count; i++) {
+            pos[i * 2] = _particles[i].X;
+            pos[i * 2 + 1] = _particles[i].Y;
+        }
+        return pos;
+    }
+
+    public static byte[] GetParticleColors()
+    {
+        var colors = new byte[_particles.Count * 4];
+        for (int i = 0; i < _particles.Count; i++) {
+            colors[i * 4] = _particles[i].Color.R;
+            colors[i * 4 + 1] = _particles[i].Color.G;
+            colors[i * 4 + 2] = _particles[i].Color.B;
+            colors[i * 4 + 3] = _particles[i].Color.A;
+        }
+        return colors;
     }
 
     private static void DrawLine(SKCanvas c, float x, float y, float w, SKColor color)

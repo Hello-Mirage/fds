@@ -33,8 +33,10 @@ public class SkiaRendererControl : Control
 
     internal delegate float RenderFunc(SKCanvas canvas, float w, float h, float s);
     internal delegate void ClickFunc(float x, float y, float w, float h, float s);
+    internal delegate void VertexUpdateFunc(byte[] delta);
     private RenderFunc? _fastRender;
     private ClickFunc? _fastClick;
+    private VertexUpdateFunc? _applyVertexUpdates;
 
     private SKPicture? _latestVectorFrame;
     private readonly object _frameLock = new();
@@ -138,8 +140,10 @@ public class SkiaRendererControl : Control
                 {
                     var renderM = type.GetMethod("Render");
                     var clickM = type.GetMethod("HandleClick");
+                    var vertexM = type.GetMethod("ApplyVertexUpdates");
                     if (renderM != null) _fastRender = (RenderFunc)Delegate.CreateDelegate(typeof(RenderFunc), renderM);
                     if (clickM != null) _fastClick = (ClickFunc)Delegate.CreateDelegate(typeof(ClickFunc), clickM);
+                    if (vertexM != null) _applyVertexUpdates = (VertexUpdateFunc)Delegate.CreateDelegate(typeof(VertexUpdateFunc), vertexM);
                     _streamProgress = 1.0f;
                 }
 
@@ -270,6 +274,16 @@ public class SkiaRendererControl : Control
                 int chunkIndex = BitConverter.ToInt32(packet, 8);
                 int length = BitConverter.ToInt32(packet, 12);
                 
+                // --- OPTIMIZATION (Delta Vector V3.2): Fast Routing for Vertex Deltas ---
+                if (frameId == -3) // Type 3: Vertex Delta (Internal reserved ID)
+                {
+                    byte[] deltaData = new byte[length];
+                    Buffer.BlockCopy(packet, 16, deltaData, 0, length);
+                    _applyVertexUpdates?.Invoke(deltaData);
+                    Dispatcher.UIThread.Post(() => InvalidateVisual());
+                    continue;
+                }
+
                 if (!_frameChunks.ContainsKey(frameId)) 
                     _frameChunks[frameId] = new byte[totalChunks][];
 
