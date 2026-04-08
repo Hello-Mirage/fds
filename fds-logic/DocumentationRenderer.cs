@@ -504,6 +504,7 @@ public static class DocumentationRenderer
             string test = line == "" ? word : line + " " + word;
             if (p.MeasureText(test) > maxW) { c.DrawText(line, x, y + size, p); y += lineH; line = word; }
             else line = test;
+        }
         c.DrawText(line, x, y + size, p); 
         return y + lineH; // Return absolute Y again to avoid breaking other calls
     }

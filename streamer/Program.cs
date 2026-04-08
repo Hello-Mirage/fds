@@ -127,13 +127,14 @@ class Program
                     
                     if (data != null)
                     {
+                        // --- OPTIMIZATION (RESTORED): Content Hashing ---
                         long currentHash = GetFastHash(data);
-                        if (currentHash == session.LastHash) { await Task.Delay(16); continue; }
+                        if (currentHash == session.LastHash) { await Task.Delay(8); continue; }
                         session.LastHash = currentHash;
 
                         byte[] bytes = data.ToArray();
                         int frameId = (int)(DateTime.Now.Ticks % 1000000);
-                        int chunkSize = 30000;
+                        int chunkSize = 8192; // 8KB chunks for high performance/low overhead
                         int totalChunks = (int)Math.Ceiling(bytes.Length / (double)chunkSize);
 
                         for (int i = 0; i < totalChunks; i++)
@@ -148,13 +149,13 @@ class Program
                             Buffer.BlockCopy(bytes, offset, packet, 16, length);
 
                             await _udpSender.SendAsync(packet, packet.Length, session.VectorEndpoint);
-                            if (totalChunks > 1) await Task.Delay(1);
+                            // Sub-packet delay removed for tighter 8ms frame reassembly
                         }
                     }
                 }
                 catch { }
             }
-            await Task.Delay(16);
+            await Task.Delay(8); // Stable high-frequency (125 FPS) for smooth UI logic
         }
     }
 
