@@ -1,88 +1,38 @@
-# Hybrid Streaming in FDS (V3)
-___________________________
-
-FDS V3 supports a **Hybrid Architecture** that allows developers to choose the best transport method for their specific use case. By writing a single Skia-native `Render` method, your application can be delivered as either a distributed logic module or a high-frequency vector stream.
-
-## 1. Logic Streaming (WASM/TCP)
-**Mode**: Internal Logic Execution (Client-Side)
-**Transport**: TCP (Port 5000)
-
-In this mode, the Streamer pushes the entire binary logic module (`.dll`) to the client. The client compiles the module locally and executes the `Render` loop natively at 60 FPS.
-
-- **Best For**: High-performance desktops, high-latency/jitter connections, and offline-capable sessions.
-- **Latency**: 0ms interaction latency (hit-tests are local).
-- **Overhead**: Occurs on the Client (CPU/WASM execution).
-
+# Hybrid Streaming Architecture
 ---
 
-## 2. Vector Streaming (UDP)
-**Mode**: Remote Logic Execution (Server-Side)
-**Transport**: UDP (Port 5005)
+FDS V3.1 utilizes a tiered transport architecture that separates persistent application logic from high-frequency visual updates. This document outlines the technical interplay between the WASM-based Logic Layer and the UDP-based Vector Layer.
 
-In this mode, the Streamer executes the logic module server-side. It records the drawing commands into a Skia Vector frame (`SKPicture`) and streams the serialized vectors to the client via UDP. The client simply "replays" the commands on its canvas.
+## 1. Persistent Logic Layer (TCP:5000)
 
-- **Best For**: Thin clients (Mobiles, IoT), low-power devices, and ultra-high-performance server-side rendering.
-- **Latency**: Network-dependent (Server-to-Client RTT).
-- **Overhead**: Occurs on the Server. Client overhead is near-zero.
+The Logic Layer delivers the application's executable code. 
 
----
+- **Mechanism**: The streamer transmits the compiled logic module (`.dll`) to the client upon connection.
+- **Execution**: The client executes this binary within a native Skia-hosted runtime. 
+- **Role**: This layer handles primary layout, interaction logic (hit-testing), and local state management. It provides a reliable "base" that operates at 60 FPS regardless of network jitter.
 
-## 3. Writing Hybrid-Ready Code
-___________________________
+## 2. Dynamic Vector Layer (UDP:5005)
 
-To ensure your code works in both modes, follow the **Unified Render Signature**:
+The Vector Layer provides high-frequency visual overlays and "live" UI properties streamed from the server.
 
-```csharp
-namespace FdsLogic;
+- **Mechanism**: The server executes the logic module server-side, records the output as an `SKPicture` (Vector commands), and streams these commands to the client.
+- **Transport**: Individual frames are fragmented into MTU-aware **8,192-byte chunks** for resilient delivery over UDP.
+- **Tick Rate**: The stream is calibrated to an **8ms refresh gate (125 FPS)**, providing higher fidelity than the local 60 FPS logic loop for cinematic UI properties (glows, pulsing gradients, live telemetry).
 
-public static class MyRenderer
-{
-    // This method is called by BOTH the Client (WASM mode) and the Server (Vector mode)
-    public static float Render(SKCanvas canvas, float width, float height, float scrollOffset)
-    {
-        canvas.Clear(SKColors.Black);
-        
-        // Use standard SkiaSharp commands
-        using var paint = new SKPaint { Color = SKColors.Cyan, TextSize = 32 };
-        canvas.DrawText("Hybrid FDS", 50, 100, paint);
+## 3. Layered Composition
 
-        return 2000; // Always return the total content height for scroll support
-    }
-}
-```
+The FDS Client implements a multi-layer composition engine to merge these streams into a seamless UI.
 
-### Constraints for Hybrid Code:
-1. **Stateless Drawing**: Ensure your `Render` method doesn't rely on local filesystem or hardware that only exists on one side.
-2. **Deterministic Layout**: Since the server and client might have different DPIs, always use the provided `width` and `height` for all relative positioning.
-3. **Asset Handling**: Embedded resources (fonts, icons) should be bundled within the DLL so both the server and client can access them during their respective execution loops.
+### WASM Background Layer (Local)
+The client executes the `Render` entry point locally. This ensures that buttons respond to hover and click states with 0ms delay, as the logic is running on the host machine.
 
----
+### Vector Overlay Layer (Remote)
+Incoming UDP vector packets are reassembled in a specialized background thread. Once a complete `Frame` is reassembled, it is "played back" on top of the WASM layer.
 
-## 4. Concurrent Layering
-___________________________
+## 4. Optimization Strategies
 
-FDS V3 supports simultaneous transport. The client composites two independent drawing layers into a single frame:
+To maintain performance across both layers, FDS implements several critical optimizations:
 
-1.  **Lower Layer (WASM)**: Reliable UI, layout, and interaction logic.
-2.  **Upper Layer (Vector)**: High-frequency remote overlays or "live feed" animations.
-
-### Handling Remote Overlays:
-Use the `IsServer` property to detect if your code is executing on the Streamer (for UDP broadcast) or on the Client (for local WASM):
-
-```csharp
-public static bool IsServer { get; set; }
-
-public static float Render(SKCanvas canvas, float w, float h, float s)
-{
-    // Draw base UI (Client & Server)
-    DrawLayout(canvas);
-
-    // Draw remote-only overlay (Server only)
-    if (IsServer)
-    {
-        DrawRemoteIndicator(canvas);
-    }
-}
-```
-
-The FDS Client automatically reassembles incoming UDP packets on Port 5005 and overlays them on top of the local WASM render in real-time.
+- **XOR-Fold Frame Suppression**: Within the Vector Layer, frames that have not changed are detected via an XOR-fold hash of the `SKPicture` buffer. If no change is detected, the server skips the UDP broadcast for that tick.
+- **Compiled Delegates**: Both the local client runtime and the server-side vector recorder use compiled delegates for logic execution, bypassing the latency over reflection-based invocation.
+- **Delta Vectorization**: Only the drawing commands are sent, not pixel data. This maintains a massive bandwidth advantage over traditional VNC or bitmap-based remote desktop protocols.
