@@ -18,9 +18,17 @@ public static class DocumentationRenderer
 
     private static string _clickNotification = "";
     private static double _notificationTime = 0;
-    private static string _currentPage = "Home"; // Routing state: Home, Docs, QuickStart
+    private static string _currentPage = "Home"; // Routing state: Home, Docs, QuickStart, Arcade
     public static bool IsServer { get; set; } = false;
     private static float _pulse = 0;
+    private static readonly System.Collections.Generic.List<Particle> _particles = new();
+    private static DateTime _lastPhysicsUpdate = DateTime.Now;
+
+    private class Particle {
+        public float X, Y, VX, VY, Radius;
+        public SKColor Color;
+        public float Life = 1.0f;
+    }
 
     private struct LayoutContext
     {
@@ -75,9 +83,14 @@ public static class DocumentationRenderer
                 _currentPage = "Docs";
                 return;
             }
-            if (x >= navLeft + 180 && x <= navLeft + 300)
+            if (x >= navLeft + 180 && x <= navLeft + 280)
             {
                 _currentPage = "QuickStart";
+                return;
+            }
+            if (x >= navLeft + 300 && x <= navLeft + 400)
+            {
+                _currentPage = "Arcade";
                 return;
             }
         }
@@ -95,6 +108,10 @@ public static class DocumentationRenderer
             {
                 _currentPage = "Docs";
             }
+        }
+        else if (_currentPage == "Arcade")
+        {
+            SpawnParticles(x, y + scrollOffset);
         }
         else
         {
@@ -135,6 +152,9 @@ public static class DocumentationRenderer
                 break;
             case "QuickStart":
                 y = RenderQuickStartPage(canvas, ctx, time, y);
+                break;
+            case "Arcade":
+                y = RenderArcadePage(canvas, width, height, time);
                 break;
             // --- Hybrid Mode Indicator (Server-Only Overlay) ---
         if (IsServer)
@@ -191,6 +211,9 @@ public static class DocumentationRenderer
         
         linkP.Color = _currentPage == "QuickStart" ? Cyan : White;
         canvas.DrawText("QUICK START", navLeft + 180, 38, linkP);
+
+        linkP.Color = _currentPage == "Arcade" ? Orange : White;
+        canvas.DrawText("ARCADE", navLeft + 300, 38, linkP);
 
         if (_currentPage != "Home")
         {
@@ -518,6 +541,64 @@ public static class DocumentationRenderer
         c.DrawRoundRect(rect, 20, 20, bg);
         p.Color = White.WithAlpha((byte)(255 * alpha));
         c.DrawText(text, (w - tw) / 2, h - 54, p);
+    }
+
+    private static void SpawnParticles(float x, float y)
+    {
+        var rnd = new Random();
+        for (int i = 0; i < 10; i++)
+        {
+            _particles.Add(new Particle {
+                X = x, Y = y,
+                VX = (float)(rnd.NextDouble() * 10 - 5),
+                VY = (float)(rnd.NextDouble() * -15 - 5),
+                Radius = (float)(rnd.NextDouble() * 4 + 2),
+                Color = rnd.Next(3) == 0 ? Cyan : (rnd.Next(2) == 0 ? Purple : Orange)
+            });
+        }
+        if (_particles.Count > 100) _particles.RemoveRange(0, _particles.Count - 100);
+    }
+
+    private static float RenderArcadePage(SKCanvas c, float w, float h, float time)
+    {
+        // Physics update
+        var now = DateTime.Now;
+        float dt = (float)(now - _lastPhysicsUpdate).TotalSeconds;
+        _lastPhysicsUpdate = now;
+        if (dt > 0.1f) dt = 0.016f; // Clamping for first frame
+
+        foreach (var p in _particles)
+        {
+            p.VY += 25.0f * dt; // Gravity
+            p.X += p.VX;
+            p.Y += p.VY;
+            if (p.X < 0 || p.X > w) p.VX *= -0.8f;
+            if (p.Y > h - 100) { p.Y = h - 100; p.VY *= -0.6f; }
+            p.Life -= dt * 0.4f;
+        }
+        _particles.RemoveAll(p => p.Life <= 0);
+
+        // Rendering
+        using var titleP = new SKPaint { Color = Orange, TextSize = 40, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold) };
+        c.DrawText("FDS ARCADE", 40, 140, titleP);
+        using var subP = new SKPaint { Color = Gray, TextSize = 14, IsAntialias = true, Typeface = SKTypeface.FromFamilyName("Consolas") };
+        c.DrawText("High-Frequency Physics Simulation (125 FPS Vector Stream)", 40, 165, subP);
+        c.DrawText("Click anywhere to spawn neon debris.", 40, 185, subP);
+
+        using var glow = new SKPaint { IsAntialias = true, MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, 4) };
+        using var fill = new SKPaint { IsAntialias = true };
+
+        foreach (var p in _particles)
+        {
+            glow.Color = p.Color.WithAlpha((byte)(100 * p.Life));
+            c.DrawCircle(p.X, p.Y, p.Radius + 2, glow);
+            fill.Color = p.Color.WithAlpha((byte)(255 * p.Life));
+            c.DrawCircle(p.X, p.Y, p.Radius, fill);
+        }
+
+        // Floor
+        using var fp = new SKPaint { Color = BorderColor, StrokeWidth = 2 };
+        return h;
     }
 
     private static void DrawLine(SKCanvas c, float x, float y, float w, SKColor color)

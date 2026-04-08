@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("FdsClient")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+13bd3fc1de3edb005367e130a1135196b0d67560")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5f3f2e59ff3eab637cc1132d6641866cc80cc697")]
 [assembly: System.Reflection.AssemblyProductAttribute("FdsClient")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FdsClient")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
