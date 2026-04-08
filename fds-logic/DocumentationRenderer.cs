@@ -19,6 +19,8 @@ public static class DocumentationRenderer
     private static string _clickNotification = "";
     private static double _notificationTime = 0;
     private static string _currentPage = "Home"; // Routing state: Home, Docs, QuickStart
+    public static bool IsServer { get; set; } = false;
+    private static float _pulse = 0;
 
     private struct LayoutContext
     {
@@ -134,7 +136,18 @@ public static class DocumentationRenderer
             case "QuickStart":
                 y = RenderQuickStartPage(canvas, ctx, time, y);
                 break;
+            // --- Hybrid Mode Indicator (Server-Only Overlay) ---
+        if (IsServer)
+        {
+            _pulse = (float)Math.Abs(Math.Sin(DateTime.Now.Ticks / 5000000.0));
+            float lx = width - ctx.Margin - 100;
+            float ly = 32;
+            
+            canvas.DrawRoundRect(new SKRect(lx, ly-10, lx+80, ly+10), 10, 10, new SKPaint { Color = new SKColor(20, 20, 30), Style = SKPaintStyle.Fill });
+            canvas.DrawCircle(lx + 10, ly, 4 * _pulse + 2, new SKPaint { Color = Green, IsAntialias = true });
+            canvas.DrawText("LIVE FEED", lx + 22, ly + 5, new SKPaint { Color = Green, TextSize = 10, Typeface = SKTypeface.FromFamilyName("Arial", SKFontStyle.Bold) });
         }
+    }
 
         y += 80; // Bottom spacing
 

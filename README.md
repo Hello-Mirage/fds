@@ -1,64 +1,63 @@
-FDS: Fast Drawing Streamer
-___________________________
+# FDS (Fast Drawing Streamer)
+________________________________________________________________________________
 
-FDS is a browser-less, WASM-native remote UI platform that delivers UI logic instead of pixels. By executing drawing logic at the client edge, FDS provides a native experience even on low-bandwidth connections.
+FDS is a browser-less, WASM-native remote UI platform that delivers **UI logic instead of pixels**. By streaming drawing commands and executing them at the client edge, FDS provides a pixel-perfect native experience with zero interaction latency.
 
+________________________________________________________________________________
 
+### Documentation
 
-___________________________
+Detailed guides and technical specifications are located in the `docs/` folder:
 
-Documentation
+*   **[FDS Platform](docs/FDS_PLATFORM.md)**: Introduction to the FDS ecosystem.
+*   **[Developing Apps](docs/DEVELOPING_APPS.md)**: Guide to building Skia-native UI modules.
+*   **[Hybrid Streaming](docs/HYBRID_STREAMING.md)**: Technical guide to layered WASM & UDP transport.
+*   **[Core Architecture](docs/ARCHITECTURE.md)**: The WASM-Chunked Streaming protocol.
 
+________________________________________________________________________________
 
-Detailed guides and technical specifications are in the docs/ folder:
+### Quick Start
 
-  - docs/FDS_PLATFORM.md     What is FDS?
-  - docs/DEVELOPING_APPS.md  Guide to building Skia-native UI modules.
-  - docs/ARCHITECTURE.md     The WASM-Chunked Streaming protocol.
+Ensure you have the **.NET 10 SDK** and **Python 3.x** installed.
 
-___________________________
+1.  **Build the Project**:
+    ```bash
+    dotnet build
+    ```
 
-Quick Start
+2.  **Launch All Services**:
+    ```bash
+    python run.py
+    ```
 
+3.  **Enable Protocol Handling**:
+    Import `install_fds_protocol.reg` to enable `fds://` browser-to-native application launching.
 
-Ensure you have the .NET 10 SDK installed.
+________________________________________________________________________________
 
-  1. Clone and Build:
-     dotnet build
+### Core Features
 
-  2. One-Click Launch (All Services):
-     python run.py
+*   **WASM-Native Logic**: UI logic is streamed as binary chunks and executed at native speed.
+*   **Concurrent Hybrid Transport**: Simultaneously layer reliable local WASM (TCP) with high-frequency remote Vector (UDP) overlays.
+*   **Zero-Latency Input**: Hit-testing occurs at the local edge for 0ms interaction delay.
+*   **Skia-Native Routing**: State-based navigation internal to the logic bundle.
+*   **Browser-to-Native**: Launch seamless native UI sessions directly from any website via `fds://`.
 
-  3. Custom Protocol Integration:
-     Import install_fds_protocol.reg to enable fds:// browser links.
+________________________________________________________________________________
 
-___________________________
+### Project Structure
 
-Core Features
+*   **/streamer**: The TCP/UDP server that distributes logic and streams vectors.
+*   **/fds-client**: The Avalonia host that executes modules and replays remote streams.
+*   **/fds-logic**: Example interactive UI module compiled for remote distribution.
+*   **/docs**: Technical documentation and developer guides.
 
+________________________________________________________________________________
 
-  - WASM-Native Logic: UI logic is streamed as binary chunks and executed at native speed.
-  - Zero-Latency Input: Interaction hit-tests occur locally on the client (0ms delay).
-  - Skia-Native Routing: Multi-page navigation (Home, Docs, QuickStart) managed within the logic bundle.
-  - Custom Protocol (fds://): Launch native UI sessions directly from any browser or website.
+### License
 
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
 
-___________________________
+________________________________________________________________________________
 
-Project Structure
-
-
-  streamer/      The TCP server that distributes the UI logic module.
-  fds-client/    The Avalonia client that hosts the local Skia engine.
-  fds-logic/     A sample application module compiled for remote distribution.
-  docs/          Technical documentation and developer guides.
-
-___________________________
-
-License
-___________________________
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-
-This prototype has been built using Antigravity IDE.
+*This project was developed and refined using the Antigravity IDE.*

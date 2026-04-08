@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
@@ -31,6 +32,11 @@ public class SkiaRendererControl : Control
 
     private System.Reflection.MethodInfo? _remoteRenderMethod;
     private System.Reflection.MethodInfo? _remoteClickHandler;
+    private SKPicture? _latestVectorFrame;
+    private readonly object _frameLock = new();
+    
+    // Packet reassembly cache
+    private readonly Dictionary<int, byte[][]> _frameChunks = new();
 
     public string ConnectionHost { get; set; } = "127.0.0.1";
     public int ConnectionPort { get; set; } = 5000;
@@ -47,6 +53,7 @@ public class SkiaRendererControl : Control
 
         Task.Run(() => ListenForDrawingCommands(_cts.Token));
         Task.Run(() => ConnectInputChannel(_cts.Token));
+        Task.Run(() => ListenForVectorCommands(_cts.Token));
         
         this.PointerPressed += OnPointerPressed;
         this.AddHandler(InputElement.PointerWheelChangedEvent, (s, e) => OnPointerWheelChangedInternal(e), RoutingStrategies.Tunnel | RoutingStrategies.Bubble, true);
@@ -143,13 +150,13 @@ public class SkiaRendererControl : Control
     {
         context.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, Bounds.Width, Bounds.Height));
 
-        if (_streamProgress < 1.0f)
+        if (_streamProgress < 1.0f && _latestVectorFrame == null)
         {
             context.Custom(new LoadingDrawOperation(new Rect(0, 0, Bounds.Width, Bounds.Height), _streamProgress));
         }
-        else if (_remoteRenderMethod != null)
+        else
         {
-            context.Custom(new SkiaDrawOperation(new Rect(0, 0, Bounds.Width, Bounds.Height), _remoteRenderMethod, _scrollOffset, this));
+            context.Custom(new SkiaDrawOperation(new Rect(0, 0, Bounds.Width, Bounds.Height), _remoteRenderMethod, _latestVectorFrame, _scrollOffset, this));
         }
     }
 
@@ -191,10 +198,18 @@ public class SkiaRendererControl : Control
 
     private class SkiaDrawOperation : ICustomDrawOperation
     {
-        private readonly System.Reflection.MethodInfo _method;
+        private readonly System.Reflection.MethodInfo? _method;
+        private readonly SKPicture? _picture;
         private readonly float _scroll;
         private readonly SkiaRendererControl _owner;
-        public SkiaDrawOperation(Rect bounds, System.Reflection.MethodInfo method, float scroll, SkiaRendererControl owner) { Bounds = bounds; _method = method; _scroll = scroll; _owner = owner; }
+        public SkiaDrawOperation(Rect bounds, System.Reflection.MethodInfo? method, SKPicture? picture, float scroll, SkiaRendererControl owner) 
+        { 
+            Bounds = bounds; 
+            _method = method; 
+            _picture = picture;
+            _scroll = scroll; 
+            _owner = owner; 
+        }
         public Rect Bounds { get; }
         public void Dispose() { }
         public bool Equals(ICustomDrawOperation? other) => false;
@@ -205,13 +220,95 @@ public class SkiaRendererControl : Control
             if (lease == null) return;
             using (lease)
             {
-                var result = _method.Invoke(null, new object[] { lease.SkCanvas, (float)Bounds.Width, (float)Bounds.Height, _scroll });
-                if (result is float contentHeight)
+                var canvas = lease.SkCanvas;
+                
+                // --- LAYER 1: Local WASM (Reliable UI) ---
+                if (_method != null)
                 {
-                    float maxScroll = Math.Max(0, contentHeight - (float)Bounds.Height);
-                    _owner._maxScroll = maxScroll;
+                    var result = _method.Invoke(null, new object[] { canvas, (float)Bounds.Width, (float)Bounds.Height, _scroll });
+                    if (result is float contentHeight)
+                    {
+                        float maxScroll = Math.Max(0, contentHeight - (float)Bounds.Height);
+                        _owner._maxScroll = maxScroll;
+                    }
+                }
+
+                // --- LAYER 2: Remote UDP Vectors (Dynamic Overlays) ---
+                lock (_owner._frameLock)
+                {
+                    if (_owner._latestVectorFrame != null)
+                    {
+                        canvas.DrawPicture(_owner._latestVectorFrame);
+                    }
                 }
             }
+        }
+    }
+
+    private async Task ListenForVectorCommands(CancellationToken ct)
+    {
+        using var udp = new UdpClient(5005);
+        while (!ct.IsCancellationRequested)
+        {
+            try {
+                var result = await udp.ReceiveAsync(ct);
+                var packet = result.Buffer;
+                if (packet.Length < 16) continue;
+
+                int frameId = BitConverter.ToInt32(packet, 0);
+                int totalChunks = BitConverter.ToInt32(packet, 4);
+                int chunkIndex = BitConverter.ToInt32(packet, 8);
+                int length = BitConverter.ToInt32(packet, 12);
+                
+                if (!_frameChunks.ContainsKey(frameId)) 
+                    _frameChunks[frameId] = new byte[totalChunks][];
+
+                var chunks = _frameChunks[frameId];
+                chunks[chunkIndex] = new byte[length];
+                Buffer.BlockCopy(packet, 16, chunks[chunkIndex], 0, length);
+
+                // Check if frame is complete
+                bool complete = true;
+                int totalSize = 0;
+                for (int i = 0; i < totalChunks; i++) {
+                    if (chunks[i] == null) { complete = false; break; }
+                    totalSize += chunks[i].Length;
+                }
+
+                if (complete)
+                {
+                    byte[] frameData = new byte[totalSize];
+                    int offset = 0;
+                    for (int i = 0; i < totalChunks; i++) {
+                        Buffer.BlockCopy(chunks[i], 0, frameData, offset, chunks[i].Length);
+                        offset += chunks[i].Length;
+                    }
+                    
+                    // Atomically update frame
+                    Task.Run(() => {
+                        try {
+                            using var skData = SKData.CreateCopy(frameData);
+                            var picture = SKPicture.Deserialize(skData);
+                            
+                            if (picture != null)
+                            {
+                                lock (_frameLock)
+                                {
+                                    var oldFrame = _latestVectorFrame;
+                                    _latestVectorFrame = picture;
+                                    // Use Dispatcher to dispose to ensure render thread is done
+                                    Dispatcher.UIThread.Post(() => oldFrame?.Dispose());
+                                }
+                                Dispatcher.UIThread.Post(() => InvalidateVisual());
+                            }
+                        } catch { }
+                    });
+
+                    // Keep cache clean
+                    _frameChunks.Remove(frameId);
+                    if (_frameChunks.Count > 5) _frameChunks.Clear();
+                }
+            } catch { }
         }
     }
 
