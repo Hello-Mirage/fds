@@ -26,17 +26,22 @@ public class SkiaRendererControl : Control
     
     private float _lastSyncedW = -1;
     private float _lastSyncedH = -1;
-    private float _scrollOffset = 0;
+    private float _scrollOffset = 0; // Current scroll (interpolated)
+    private float _targetScroll = 0; // Target scroll (intended)
     private float _maxScroll = 0;
     private float _streamProgress = 0;
 
-    private System.Reflection.MethodInfo? _remoteRenderMethod;
-    private System.Reflection.MethodInfo? _remoteClickHandler;
+    private delegate float RenderFunc(SKCanvas canvas, float w, float h, float s);
+    private delegate void ClickFunc(float x, float y, float w, float h, float s);
+    private RenderFunc? _fastRender;
+    private ClickFunc? _fastClick;
+
     private SKPicture? _latestVectorFrame;
     private readonly object _frameLock = new();
     
     // Packet reassembly cache
     private readonly Dictionary<int, byte[][]> _frameChunks = new();
+    private readonly byte[] _reassemblySharedBuffer = new byte[1024 * 1024];
 
     public string ConnectionHost { get; set; } = "127.0.0.1";
     public int ConnectionPort { get; set; } = 5000;
@@ -131,8 +136,10 @@ public class SkiaRendererControl : Control
                 var type = assembly.GetType("FdsLogic.DocumentationRenderer");
                 if (type != null)
                 {
-                    _remoteRenderMethod = type.GetMethod("Render");
-                    _remoteClickHandler = type.GetMethod("HandleClick");
+                    var renderM = type.GetMethod("Render");
+                    var clickM = type.GetMethod("HandleClick");
+                    if (renderM != null) _fastRender = (RenderFunc)Delegate.CreateDelegate(typeof(RenderFunc), renderM);
+                    if (clickM != null) _fastClick = (ClickFunc)Delegate.CreateDelegate(typeof(ClickFunc), clickM);
                     _streamProgress = 1.0f;
                 }
 
@@ -222,15 +229,18 @@ public class SkiaRendererControl : Control
             {
                 var canvas = lease.SkCanvas;
                 
-                // --- LAYER 1: Local WASM (Reliable UI) ---
-                if (_method != null)
+                // --- SMOOTH SCROLL INTERPOLATION ---
+                if (Math.Abs(_owner._targetScroll - _owner._scrollOffset) > 0.1f)
                 {
-                    var result = _method.Invoke(null, new object[] { canvas, (float)Bounds.Width, (float)Bounds.Height, _scroll });
-                    if (result is float contentHeight)
-                    {
-                        float maxScroll = Math.Max(0, contentHeight - (float)Bounds.Height);
-                        _owner._maxScroll = maxScroll;
-                    }
+                    _owner._scrollOffset += (_owner._targetScroll - _owner._scrollOffset) * 0.15f;
+                    Dispatcher.UIThread.Post(() => _owner.InvalidateVisual(), DispatcherPriority.Render);
+                }
+
+                // --- LAYER 1: Local WASM (Reliable UI) ---
+                if (_owner._fastRender != null)
+                {
+                    float maxS = _owner._fastRender(canvas, (float)Bounds.Width, (float)Bounds.Height, _owner._scrollOffset);
+                    _owner._maxScroll = maxS;
                 }
 
                 // --- LAYER 2: Remote UDP Vectors (Dynamic Overlays) ---
@@ -277,14 +287,16 @@ public class SkiaRendererControl : Control
 
                 if (complete)
                 {
-                    byte[] frameData = new byte[totalSize];
                     int offset = 0;
                     for (int i = 0; i < totalChunks; i++) {
-                        Buffer.BlockCopy(chunks[i], 0, frameData, offset, chunks[i].Length);
+                        Buffer.BlockCopy(chunks[i], 0, _reassemblySharedBuffer, offset, chunks[i].Length);
                         offset += chunks[i].Length;
                     }
                     
-                    // Atomically update frame
+                    // Copy to fixed size for Skia
+                    byte[] frameData = new byte[offset];
+                    Buffer.BlockCopy(_reassemblySharedBuffer, 0, frameData, 0, offset);
+
                     Task.Run(() => {
                         try {
                             using var skData = SKData.CreateCopy(frameData);
@@ -296,7 +308,6 @@ public class SkiaRendererControl : Control
                                 {
                                     var oldFrame = _latestVectorFrame;
                                     _latestVectorFrame = picture;
-                                    // Use Dispatcher to dispose to ensure render thread is done
                                     Dispatcher.UIThread.Post(() => oldFrame?.Dispose());
                                 }
                                 Dispatcher.UIThread.Post(() => InvalidateVisual());
@@ -331,56 +342,59 @@ public class SkiaRendererControl : Control
 
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        var pos = e.GetPosition(this);
+        var point = e.GetCurrentPoint(this);
+        float x = (float)point.Position.X;
+        float y = (float)point.Position.Y;
         if (Bounds.Width <= 0) return;
 
-        // Remote Logic Click Handling (Local Edge)
-        if (_remoteClickHandler != null)
-        {
-            try {
-                _remoteClickHandler.Invoke(null, new object[] { 
-                    (float)pos.X, (float)pos.Y, 
-                    (float)Bounds.Width, (float)Bounds.Height, 
-                    _scrollOffset 
-                });
-                InvalidateVisual();
-            } catch {}
-        }
+        // Update local logic immediately for 0ms feedback
+        _fastClick?.Invoke(x, y + _scrollOffset, (float)Bounds.Width, (float)Bounds.Height, _scrollOffset);
+        InvalidateVisual();
 
-        if (_inputStream == null) return;
-        float nx = (float)(pos.X / Bounds.Width);
-        float ny = (float)(pos.Y / Bounds.Height);
-        Task.Run(async () => {
-            await _streamLock.WaitAsync();
-            try {
-                var buf = new byte[12];
-                BitConverter.GetBytes(0).CopyTo(buf, 0); // Type 0: Click
-                BitConverter.GetBytes(nx).CopyTo(buf, 4);
-                BitConverter.GetBytes(ny).CopyTo(buf, 8);
-                await _inputStream.WriteAsync(buf, 0, 12);
-                await _inputStream.FlushAsync();
-            } catch {} finally { _streamLock.Release(); }
-        });
+        var stream = _inputStream;
+        if (stream != null)
+        {
+            Task.Run(async () =>
+            {
+                await _streamLock.WaitAsync();
+                try
+                {
+                    var buf = new byte[12];
+                    BitConverter.GetBytes(0).CopyTo(buf, 0); // Type 0: Click
+                    BitConverter.GetBytes(x / (float)Bounds.Width).CopyTo(buf, 4);
+                    BitConverter.GetBytes(y / (float)Bounds.Height).CopyTo(buf, 8);
+                    await stream.WriteAsync(buf, 0, 12);
+                    await stream.FlushAsync();
+                }
+                catch { } finally { _streamLock.Release(); }
+            });
+        }
     }
 
     private void OnPointerWheelChangedInternal(PointerWheelEventArgs e)
     {
-        float dy = (float)e.Delta.Y;
-        _scrollOffset -= dy * 30.0f;
-        if (_scrollOffset < 0) _scrollOffset = 0;
-        if (_maxScroll > 0 && _scrollOffset > _maxScroll) _scrollOffset = _maxScroll;
-        if (_inputStream == null) return;
-        Task.Run(async () => {
-            await _streamLock.WaitAsync();
-            try {
-                var buf = new byte[12];
-                BitConverter.GetBytes(2).CopyTo(buf, 0); // Type 2: Scroll
-                BitConverter.GetBytes(dy).CopyTo(buf, 4);
-                BitConverter.GetBytes(0f).CopyTo(buf, 8);
-                await _inputStream.WriteAsync(buf, 0, 12);
-                await _inputStream.FlushAsync();
-            } catch {} finally { _streamLock.Release(); }
-        });
+        _targetScroll -= (float)e.Delta.Y * 60.0f;
+        _targetScroll = Math.Clamp(_targetScroll, 0, _maxScroll);
+        
+        var stream = _inputStream;
+        if (stream != null)
+        {
+            Task.Run(async () =>
+            {
+                await _streamLock.WaitAsync();
+                try
+                {
+                    var buf = new byte[12];
+                    BitConverter.GetBytes(2).CopyTo(buf, 0); // Type 2: Scroll
+                    BitConverter.GetBytes((float)e.Delta.Y).CopyTo(buf, 4);
+                    BitConverter.GetBytes(0f).CopyTo(buf, 8);
+                    await stream.WriteAsync(buf, 0, 12);
+                    await stream.FlushAsync();
+                }
+                catch { } finally { _streamLock.Release(); }
+            });
+        }
+        InvalidateVisual();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)

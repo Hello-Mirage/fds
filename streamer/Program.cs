@@ -15,8 +15,13 @@ class Program
     private static float _maxScroll = 1000;
 
     // Hybrid State
-    private static MethodInfo? _remoteRenderMethod;
-    private static MethodInfo? _remoteClickHandler;
+    private delegate float RenderFunc(SKCanvas canvas, float w, float h, float s);
+    private delegate void ClickFunc(float x, float y, float w, float h, float s);
+    
+    private static RenderFunc? _fastRender;
+    private static ClickFunc? _fastClick;
+    private static long _lastFrameHash = 0;
+
     private static readonly UdpClient _udpSender = new UdpClient();
     private static IPEndPoint _clientEndpoint = new IPEndPoint(IPAddress.Loopback, 5005);
 
@@ -84,8 +89,11 @@ class Program
             if (!File.Exists(dllPath)) return;
             var assembly = Assembly.LoadFrom(dllPath);
             var type = assembly.GetType("FdsLogic.DocumentationRenderer");
-            _remoteRenderMethod = type?.GetMethod("Render");
-            _remoteClickHandler = type?.GetMethod("HandleClick");
+            var renderMethod = type?.GetMethod("Render");
+            var clickMethod = type?.GetMethod("HandleClick");
+
+            if (renderMethod != null) _fastRender = (RenderFunc)Delegate.CreateDelegate(typeof(RenderFunc), renderMethod);
+            if (clickMethod != null) _fastClick = (ClickFunc)Delegate.CreateDelegate(typeof(ClickFunc), clickMethod);
             
             // Set IsServer = true for the remote logic instance
             var isServerProp = type?.GetProperty("IsServer");
@@ -102,7 +110,7 @@ class Program
         var recorder = new SKPictureRecorder();
         while (true)
         {
-            if (_remoteRenderMethod != null)
+            if (_fastRender != null)
             {
                 try {
                     float w, h, scroll;
@@ -111,8 +119,8 @@ class Program
                     // Record drawing commands
                     using (var canvas = recorder.BeginRecording(new SKRect(0, 0, w, h)))
                     {
-                        var result = _remoteRenderMethod.Invoke(null, new object[] { canvas, w, h, scroll });
-                        if (result is float maxS) { _maxScroll = maxS; }
+                        float maxS = _fastRender(canvas, w, h, scroll);
+                        _maxScroll = maxS;
                     }
 
                     using var picture = recorder.EndRecording();
@@ -120,6 +128,14 @@ class Program
                     
                     if (data != null)
                     {
+                        // --- OPTIMIZATION: Content Hashing ---
+                        long currentHash = GetFastHash(data);
+                        if (currentHash == _lastFrameHash) {
+                            await Task.Delay(16); // Skip this frame (no changes)
+                            continue;
+                        }
+                        _lastFrameHash = currentHash;
+
                         byte[] bytes = data.ToArray();
                         
                         // --- V3 Vector Packetizer ---
@@ -171,7 +187,7 @@ class Program
                     {
                         float px, py, cw, ch, co;
                         lock (typeof(Program)) { px = v1 * _currentW; py = v2 * _currentH; cw = _currentW; ch = _currentH; co = _scrollOffset; }
-                        _remoteClickHandler?.Invoke(null, new object[] { px, py, cw, ch, co });
+                        _fastClick?.Invoke(px, py, cw, ch, co);
                     }
                     else if (type == 1) // Resize
                     {
@@ -185,7 +201,15 @@ class Program
                         }
                     }
                 }
-            } catch { }
+            } catch { await Task.Delay(100); }
         }
+    }
+
+    private static unsafe long GetFastHash(SKData data)
+    {
+        ReadOnlySpan<long> span = new ReadOnlySpan<long>(data.Data.ToPointer(), (int)data.Size / 8);
+        long hash = 0;
+        for (int i = 0; i < Math.Min(span.Length, 1024); i++) hash ^= span[i]; // Fast XOR sample hash
+        return hash;
     }
 }

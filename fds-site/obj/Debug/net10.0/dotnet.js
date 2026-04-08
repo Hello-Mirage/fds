@@ -5,7 +5,7 @@ var e=!1;const t=async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,
   "mainAssemblyName": "fds-site",
   "applicationEnvironment": "Development",
   "resources": {
-    "hash": "sha256-XvZzsqc/fMB9o3y9YX0eYiclGcEL4pggxT3T7lHbiHg=",
+    "hash": "sha256-Xz/3kO/LZiqCbtCvygRu6v7PApmQ1yo7h6rLYE4XwFw=",
     "jsModuleNative": [
       {
         "name": "dotnet.native.ykrnppwhq2.js"
@@ -1242,16 +1242,16 @@ var e=!1;const t=async()=>WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,
       },
       {
         "virtualPath": "fds-site.wasm",
-        "name": "fds-site.f1ifjdsuoe.wasm",
-        "integrity": "sha256-7W+SADLmnobYU0Uv/Oscixp7juetnVNPVH57AYQWQcg=",
+        "name": "fds-site.bs7vqwefzq.wasm",
+        "integrity": "sha256-1UxX7nIm8WbYyOkESto7vwbnSNNQsRhRz391Vmhadp4=",
         "cache": "force-cache"
       }
     ],
     "pdb": [
       {
         "virtualPath": "fds-site.pdb",
-        "name": "fds-site.yggkc3v5q9.pdb",
-        "integrity": "sha256-YjjKWLIenpNAoUxSKXRQZSzSSLmc/aeXA86gjHBeHJU=",
+        "name": "fds-site.fjbpfkyr5a.pdb",
+        "integrity": "sha256-qyWVet/9Z7hXevpKD0k4/n5PuDVVz9rHByz0sAbqe/E=",
         "cache": "force-cache"
       }
     ],
