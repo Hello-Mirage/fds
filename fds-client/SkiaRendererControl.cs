@@ -163,7 +163,7 @@ public class SkiaRendererControl : Control
         }
         else
         {
-            context.Custom(new SkiaDrawOperation(new Rect(0, 0, Bounds.Width, Bounds.Height), _remoteRenderMethod, _latestVectorFrame, _scrollOffset, this));
+            context.Custom(new SkiaDrawOperation(new Rect(0, 0, Bounds.Width, Bounds.Height), _fastRender, _latestVectorFrame, _scrollOffset, this));
         }
     }
 
@@ -205,11 +205,11 @@ public class SkiaRendererControl : Control
 
     private class SkiaDrawOperation : ICustomDrawOperation
     {
-        private readonly System.Reflection.MethodInfo? _method;
+        private readonly RenderFunc? _method;
         private readonly SKPicture? _picture;
         private readonly float _scroll;
         private readonly SkiaRendererControl _owner;
-        public SkiaDrawOperation(Rect bounds, System.Reflection.MethodInfo? method, SKPicture? picture, float scroll, SkiaRendererControl owner) 
+        public SkiaDrawOperation(Rect bounds, RenderFunc? method, SKPicture? picture, float scroll, SkiaRendererControl owner) 
         { 
             Bounds = bounds; 
             _method = method; 
