@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
+using System.Linq;
 using SkiaSharp;
 
 class ClientSession
@@ -99,17 +100,51 @@ class Program
     private static void LoadLogicModule()
     {
         try {
-            var dllPath = @"d:\fds\fds-logic\bin\Release\net10.0\fds-logic.dll";
-            if (!File.Exists(dllPath)) return;
+            var dllPath = Path.GetFullPath(@"d:\fds\fds-logic\bin\Release\net10.0\fds-logic.dll");
+            if (!File.Exists(dllPath)) {
+                Console.WriteLine($"Streamer: Logic DLL not found at {dllPath}");
+                return;
+            }
+
+            // --- Robust Assembly Resolution ---
+            AppDomain.CurrentDomain.AssemblyResolve += (sender, args) => {
+                string folderPath = Path.GetDirectoryName(dllPath)!;
+                string assemblyPath = Path.Combine(folderPath, new AssemblyName(args.Name).Name + ".dll");
+                if (File.Exists(assemblyPath)) return Assembly.LoadFrom(assemblyPath);
+                return null;
+            };
+
             var assembly = Assembly.LoadFrom(dllPath);
             var type = assembly.GetType("FdsLogic.DocumentationRenderer");
-            _fastRender = (RenderFunc?)Delegate.CreateDelegate(typeof(RenderFunc), type!.GetMethod("Render")!);
-            _fastClick = (ClickFunc?)Delegate.CreateDelegate(typeof(ClickFunc), type!.GetMethod("HandleClick")!);
-            _getPos = (GetPosFunc?)Delegate.CreateDelegate(typeof(GetPosFunc), type!.GetMethod("GetParticlePositions")!);
-            _getCol = (GetColFunc?)Delegate.CreateDelegate(typeof(GetColFunc), type!.GetMethod("GetParticleColors")!);
+
+            if (type == null) {
+                Console.WriteLine("Streamer: Type 'FdsLogic.DocumentationRenderer' NOT FOUND in assembly.");
+                return;
+            }
+
+            var mRender = type.GetMethod("Render");
+            var mClick = type.GetMethod("HandleClick");
+            var mGetPos = type.GetMethod("GetParticlePositions");
+            var mGetCol = type.GetMethod("GetParticleColors");
+
+            if (mRender == null || mClick == null || mGetPos == null || mGetCol == null) {
+                Console.WriteLine("Streamer: Logic Module MISSING required methods. (Is it out of date?)");
+                return;
+            }
+
+            _fastRender = (RenderFunc)Delegate.CreateDelegate(typeof(RenderFunc), mRender);
+            _fastClick = (ClickFunc)Delegate.CreateDelegate(typeof(ClickFunc), mClick);
+            _getPos = (GetPosFunc)Delegate.CreateDelegate(typeof(GetPosFunc), mGetPos);
+            _getCol = (GetColFunc)Delegate.CreateDelegate(typeof(GetColFunc), mGetCol);
+
             type.GetProperty("IsServer")?.SetValue(null, true);
-            Console.WriteLine("Streamer: Global Logic Engine initialized.");
-        } catch (Exception e) { Console.WriteLine("Module Load Fail: " + e.Message); }
+            Console.WriteLine("Streamer: Global Logic Engine initialized (GPU Resident Mode).");
+        } catch (Exception e) { 
+            Console.WriteLine("Streamer: Module Load Fail - " + e.Message);
+            if (e is ReflectionTypeLoadException re) {
+                foreach (var le in re.LoaderExceptions) Console.WriteLine("  LoaderErr: " + le?.Message);
+            }
+        }
     }
 
     private static async Task VectorStreamLoop(ClientSession session)

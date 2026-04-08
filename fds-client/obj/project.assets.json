@@ -109,12 +109,12 @@
           "Avalonia.Remote.Protocol": "11.0.10"
         },
         "compile": {
-          "lib/net6.0/Avalonia.Controls.ColorPicker.dll": {
+          "lib/net6.0/_._": {
             "related": ".xml"
           }
         },
         "runtime": {
-          "lib/net6.0/Avalonia.Controls.ColorPicker.dll": {
+          "lib/net6.0/_._": {
             "related": ".xml"
           }
         }
@@ -126,12 +126,12 @@
           "Avalonia.Remote.Protocol": "11.0.10"
         },
         "compile": {
-          "lib/net6.0/Avalonia.Controls.DataGrid.dll": {
+          "lib/net6.0/_._": {
             "related": ".xml"
           }
         },
         "runtime": {
-          "lib/net6.0/Avalonia.Controls.DataGrid.dll": {
+          "lib/net6.0/_._": {
             "related": ".xml"
           }
         }
@@ -167,12 +167,12 @@
           "Microsoft.CodeAnalysis.Common": "3.8.0"
         },
         "compile": {
-          "lib/net6.0/Avalonia.Diagnostics.dll": {
+          "lib/net6.0/_._": {
             "related": ".xml"
           }
         },
         "runtime": {
-          "lib/net6.0/Avalonia.Diagnostics.dll": {
+          "lib/net6.0/_._": {
             "related": ".xml"
           }
         }
@@ -289,12 +289,12 @@
           "Avalonia": "11.0.10"
         },
         "compile": {
-          "lib/net6.0/Avalonia.Themes.Simple.dll": {
+          "lib/net6.0/_._": {
             "related": ".xml"
           }
         },
         "runtime": {
-          "lib/net6.0/Avalonia.Themes.Simple.dll": {
+          "lib/net6.0/_._": {
             "related": ".xml"
           }
         }
@@ -453,54 +453,13 @@
           "Microsoft.CodeAnalysis.Analyzers": "3.0.0"
         },
         "compile": {
-          "lib/netcoreapp3.1/Microsoft.CodeAnalysis.dll": {
+          "lib/netcoreapp3.1/_._": {
             "related": ".pdb;.xml"
           }
         },
         "runtime": {
-          "lib/netcoreapp3.1/Microsoft.CodeAnalysis.dll": {
+          "lib/netcoreapp3.1/_._": {
             "related": ".pdb;.xml"
-          }
-        },
-        "resource": {
-          "lib/netcoreapp3.1/cs/Microsoft.CodeAnalysis.resources.dll": {
-            "locale": "cs"
-          },
-          "lib/netcoreapp3.1/de/Microsoft.CodeAnalysis.resources.dll": {
-            "locale": "de"
-          },
-          "lib/netcoreapp3.1/es/Microsoft.CodeAnalysis.resources.dll": {
-            "locale": "es"
-          },
-          "lib/netcoreapp3.1/fr/Microsoft.CodeAnalysis.resources.dll": {
-            "locale": "fr"
-          },
-          "lib/netcoreapp3.1/it/Microsoft.CodeAnalysis.resources.dll": {
-            "locale": "it"
-          },
-          "lib/netcoreapp3.1/ja/Microsoft.CodeAnalysis.resources.dll": {
-            "locale": "ja"
-          },
-          "lib/netcoreapp3.1/ko/Microsoft.CodeAnalysis.resources.dll": {
-            "locale": "ko"
-          },
-          "lib/netcoreapp3.1/pl/Microsoft.CodeAnalysis.resources.dll": {
-            "locale": "pl"
-          },
-          "lib/netcoreapp3.1/pt-BR/Microsoft.CodeAnalysis.resources.dll": {
-            "locale": "pt-BR"
-          },
-          "lib/netcoreapp3.1/ru/Microsoft.CodeAnalysis.resources.dll": {
-            "locale": "ru"
-          },
-          "lib/netcoreapp3.1/tr/Microsoft.CodeAnalysis.resources.dll": {
-            "locale": "tr"
-          },
-          "lib/netcoreapp3.1/zh-Hans/Microsoft.CodeAnalysis.resources.dll": {
-            "locale": "zh-Hans"
-          },
-          "lib/netcoreapp3.1/zh-Hant/Microsoft.CodeAnalysis.resources.dll": {
-            "locale": "zh-Hant"
           }
         }
       },
@@ -510,54 +469,13 @@
           "Microsoft.CodeAnalysis.Common": "[3.8.0]"
         },
         "compile": {
-          "lib/netcoreapp3.1/Microsoft.CodeAnalysis.CSharp.dll": {
+          "lib/netcoreapp3.1/_._": {
             "related": ".pdb;.xml"
           }
         },
         "runtime": {
-          "lib/netcoreapp3.1/Microsoft.CodeAnalysis.CSharp.dll": {
+          "lib/netcoreapp3.1/_._": {
             "related": ".pdb;.xml"
-          }
-        },
-        "resource": {
-          "lib/netcoreapp3.1/cs/Microsoft.CodeAnalysis.CSharp.resources.dll": {
-            "locale": "cs"
-          },
-          "lib/netcoreapp3.1/de/Microsoft.CodeAnalysis.CSharp.resources.dll": {
-            "locale": "de"
-          },
-          "lib/netcoreapp3.1/es/Microsoft.CodeAnalysis.CSharp.resources.dll": {
-            "locale": "es"
-          },
-          "lib/netcoreapp3.1/fr/Microsoft.CodeAnalysis.CSharp.resources.dll": {
-            "locale": "fr"
-          },
-          "lib/netcoreapp3.1/it/Microsoft.CodeAnalysis.CSharp.resources.dll": {
-            "locale": "it"
-          },
-          "lib/netcoreapp3.1/ja/Microsoft.CodeAnalysis.CSharp.resources.dll": {
-            "locale": "ja"
-          },
-          "lib/netcoreapp3.1/ko/Microsoft.CodeAnalysis.CSharp.resources.dll": {
-            "locale": "ko"
-          },
-          "lib/netcoreapp3.1/pl/Microsoft.CodeAnalysis.CSharp.resources.dll": {
-            "locale": "pl"
-          },
-          "lib/netcoreapp3.1/pt-BR/Microsoft.CodeAnalysis.CSharp.resources.dll": {
-            "locale": "pt-BR"
-          },
-          "lib/netcoreapp3.1/ru/Microsoft.CodeAnalysis.CSharp.resources.dll": {
-            "locale": "ru"
-          },
-          "lib/netcoreapp3.1/tr/Microsoft.CodeAnalysis.CSharp.resources.dll": {
-            "locale": "tr"
-          },
-          "lib/netcoreapp3.1/zh-Hans/Microsoft.CodeAnalysis.CSharp.resources.dll": {
-            "locale": "zh-Hans"
-          },
-          "lib/netcoreapp3.1/zh-Hant/Microsoft.CodeAnalysis.CSharp.resources.dll": {
-            "locale": "zh-Hant"
           }
         }
       },
@@ -569,54 +487,13 @@
           "Microsoft.CodeAnalysis.Scripting.Common": "[3.8.0]"
         },
         "compile": {
-          "lib/netcoreapp3.1/Microsoft.CodeAnalysis.CSharp.Scripting.dll": {
+          "lib/netcoreapp3.1/_._": {
             "related": ".pdb;.xml"
           }
         },
         "runtime": {
-          "lib/netcoreapp3.1/Microsoft.CodeAnalysis.CSharp.Scripting.dll": {
+          "lib/netcoreapp3.1/_._": {
             "related": ".pdb;.xml"
-          }
-        },
-        "resource": {
-          "lib/netcoreapp3.1/cs/Microsoft.CodeAnalysis.CSharp.Scripting.resources.dll": {
-            "locale": "cs"
-          },
-          "lib/netcoreapp3.1/de/Microsoft.CodeAnalysis.CSharp.Scripting.resources.dll": {
-            "locale": "de"
-          },
-          "lib/netcoreapp3.1/es/Microsoft.CodeAnalysis.CSharp.Scripting.resources.dll": {
-            "locale": "es"
-          },
-          "lib/netcoreapp3.1/fr/Microsoft.CodeAnalysis.CSharp.Scripting.resources.dll": {
-            "locale": "fr"
-          },
-          "lib/netcoreapp3.1/it/Microsoft.CodeAnalysis.CSharp.Scripting.resources.dll": {
-            "locale": "it"
-          },
-          "lib/netcoreapp3.1/ja/Microsoft.CodeAnalysis.CSharp.Scripting.resources.dll": {
-            "locale": "ja"
-          },
-          "lib/netcoreapp3.1/ko/Microsoft.CodeAnalysis.CSharp.Scripting.resources.dll": {
-            "locale": "ko"
-          },
-          "lib/netcoreapp3.1/pl/Microsoft.CodeAnalysis.CSharp.Scripting.resources.dll": {
-            "locale": "pl"
-          },
-          "lib/netcoreapp3.1/pt-BR/Microsoft.CodeAnalysis.CSharp.Scripting.resources.dll": {
-            "locale": "pt-BR"
-          },
-          "lib/netcoreapp3.1/ru/Microsoft.CodeAnalysis.CSharp.Scripting.resources.dll": {
-            "locale": "ru"
-          },
-          "lib/netcoreapp3.1/tr/Microsoft.CodeAnalysis.CSharp.Scripting.resources.dll": {
-            "locale": "tr"
-          },
-          "lib/netcoreapp3.1/zh-Hans/Microsoft.CodeAnalysis.CSharp.Scripting.resources.dll": {
-            "locale": "zh-Hans"
-          },
-          "lib/netcoreapp3.1/zh-Hant/Microsoft.CodeAnalysis.CSharp.Scripting.resources.dll": {
-            "locale": "zh-Hant"
           }
         }
       },
@@ -626,54 +503,13 @@
           "Microsoft.CodeAnalysis.Common": "[3.8.0]"
         },
         "compile": {
-          "lib/netcoreapp3.1/Microsoft.CodeAnalysis.Scripting.dll": {
+          "lib/netcoreapp3.1/_._": {
             "related": ".pdb;.xml"
           }
         },
         "runtime": {
-          "lib/netcoreapp3.1/Microsoft.CodeAnalysis.Scripting.dll": {
+          "lib/netcoreapp3.1/_._": {
             "related": ".pdb;.xml"
-          }
-        },
-        "resource": {
-          "lib/netcoreapp3.1/cs/Microsoft.CodeAnalysis.Scripting.resources.dll": {
-            "locale": "cs"
-          },
-          "lib/netcoreapp3.1/de/Microsoft.CodeAnalysis.Scripting.resources.dll": {
-            "locale": "de"
-          },
-          "lib/netcoreapp3.1/es/Microsoft.CodeAnalysis.Scripting.resources.dll": {
-            "locale": "es"
-          },
-          "lib/netcoreapp3.1/fr/Microsoft.CodeAnalysis.Scripting.resources.dll": {
-            "locale": "fr"
-          },
-          "lib/netcoreapp3.1/it/Microsoft.CodeAnalysis.Scripting.resources.dll": {
-            "locale": "it"
-          },
-          "lib/netcoreapp3.1/ja/Microsoft.CodeAnalysis.Scripting.resources.dll": {
-            "locale": "ja"
-          },
-          "lib/netcoreapp3.1/ko/Microsoft.CodeAnalysis.Scripting.resources.dll": {
-            "locale": "ko"
-          },
-          "lib/netcoreapp3.1/pl/Microsoft.CodeAnalysis.Scripting.resources.dll": {
-            "locale": "pl"
-          },
-          "lib/netcoreapp3.1/pt-BR/Microsoft.CodeAnalysis.Scripting.resources.dll": {
-            "locale": "pt-BR"
-          },
-          "lib/netcoreapp3.1/ru/Microsoft.CodeAnalysis.Scripting.resources.dll": {
-            "locale": "ru"
-          },
-          "lib/netcoreapp3.1/tr/Microsoft.CodeAnalysis.Scripting.resources.dll": {
-            "locale": "tr"
-          },
-          "lib/netcoreapp3.1/zh-Hans/Microsoft.CodeAnalysis.Scripting.resources.dll": {
-            "locale": "zh-Hans"
-          },
-          "lib/netcoreapp3.1/zh-Hant/Microsoft.CodeAnalysis.Scripting.resources.dll": {
-            "locale": "zh-Hant"
           }
         }
       },
@@ -2105,6 +1941,8 @@
             "version": "[11.0.10, )"
           },
           "Avalonia.Diagnostics": {
+            "include": "None",
+            "suppressParent": "All",
             "target": "Package",
             "version": "[11.0.10, )"
           },
@@ -2430,5 +2268,17 @@
         }
       }
     }
-  }
+  },
+  "logs": [
+    {
+      "code": "NU1903",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "Package 'Tmds.DBus.Protocol' 0.15.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-xrw6-gwf8-vvr9",
+      "libraryId": "Tmds.DBus.Protocol",
+      "targetGraphs": [
+        "net10.0"
+      ]
+    }
+  ]
 }

@@ -3,6 +3,7 @@ import sys
 import time
 import signal
 import os
+import shutil
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -23,6 +24,7 @@ def cleanup(*_):
             subprocess.run(["taskkill", "/F", "/IM", "StreamerServer.exe", "/T"], capture_output=True)
             subprocess.run(["taskkill", "/F", "/IM", "FdsClient.exe", "/T"], capture_output=True)
             subprocess.run(["taskkill", "/F", "/IM", "fds-site.exe", "/T"], capture_output=True)
+            subprocess.run(["taskkill", "/F", "/IM", "dotnet.exe", "/F", "/T"], capture_output=True)
     except:
         pass
 
@@ -40,9 +42,9 @@ signal.signal(signal.SIGTERM, cleanup)
 def run(name, proj, delay=0):
     if delay:
         time.sleep(delay)
-    print(f"[FDS] Starting {name}...")
+    print(f"[FDS] Starting {name} (Release)...")
     p = subprocess.Popen(
-        ["dotnet", "run", "--project", proj],
+        ["dotnet", "run", "--project", proj, "-c", "Release"],
         cwd=ROOT,
         stdout=sys.stdout,
         stderr=sys.stderr,
@@ -50,15 +52,26 @@ def run(name, proj, delay=0):
     procs.append((name, p))
     return p
 
+def clean_all():
+    print("[FDS] Cleaning stale artifacts...")
+    targets = ["fds-logic", "streamer", "fds-client", "fds-site"]
+    for t in targets:
+        for b in ["bin", "obj"]:
+            path = os.path.join(ROOT, t, b)
+            if os.path.exists(path):
+                try: shutil.rmtree(path)
+                except: pass
+
 if __name__ == "__main__":
     print("=" * 50)
     print("  FDS - Fast Drawing Streamer")
-    print("  Starting all services...")
+    print("  Clean-Build Sync Pipeline (V3.2)")
     print("=" * 50)
-    print()
+    
+    clean_all()
 
     # 1. Build logic module first
-    print("[FDS] Building logic module...")
+    print("[FDS] Building logic module (Release)...")
     subprocess.run(
         ["dotnet", "build", LOGIC, "-c", "Release"],
         cwd=ROOT,
@@ -76,7 +89,7 @@ if __name__ == "__main__":
     run("Site", SITE)
 
     print()
-    print("[FDS] All services running. Press Ctrl+C to stop.")
+    print("[FDS] All services running (RELEASE MODE). Press Ctrl+C to stop.")
     print()
 
     try:

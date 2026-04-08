@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "6TbAPlHlpAo=",
+  "dgSpecHash": "z+x+lWTl0F0=",
   "success": true,
   "projectFilePath": "d:\\fds\\fds-client\\FdsClient.csproj",
   "expectedPackageFiles": [
@@ -40,5 +40,18 @@
     "C:\\Users\\MOSTAFUR RAHAMAN\\.nuget\\packages\\tmds.dbus.protocol\\0.15.0\\tmds.dbus.protocol.0.15.0.nupkg.sha512",
     "C:\\Users\\MOSTAFUR RAHAMAN\\.nuget\\packages\\wasmtime\\34.0.2\\wasmtime.34.0.2.nupkg.sha512"
   ],
-  "logs": []
+  "logs": [
+    {
+      "code": "NU1903",
+      "level": "Warning",
+      "message": "Package 'Tmds.DBus.Protocol' 0.15.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-xrw6-gwf8-vvr9",
+      "projectPath": "d:\\fds\\fds-client\\FdsClient.csproj",
+      "warningLevel": 1,
+      "filePath": "d:\\fds\\fds-client\\FdsClient.csproj",
+      "libraryId": "Tmds.DBus.Protocol",
+      "targetGraphs": [
+        "net10.0"
+      ]
+    }
+  ]
 }
